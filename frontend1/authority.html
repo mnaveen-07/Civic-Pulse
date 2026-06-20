@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CivicPulse - Authority Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #4ade80;
+            --accent-color: #f97316;
+            --background-color: #f1f5f9;
+            --card-background: #ffffff;
+            --text-color: #0f172a;
+            --text-light: #64748b;
+            --border-color: #e2e8f0;
+            --danger-color: #ef4444;
+            --warning-color: #f97316;
+            --routine-color: #f59e0b;
+            --resolved-color: #10b981;
+            --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --border-radius: 0.75rem;
+            --font-family: 'Inter', sans-serif;
+            --transition: all 0.3s ease;
+        }
+        body.dark-mode {
+            --background-color: #0f172a;
+            --card-background: #1e293b;
+            --text-color: #f1f5f9;
+            --text-light: #94a3b8;
+            --border-color: #334155;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-family);
+            background-color: var(--background-color);
+            color: var(--text-color);
+            transition: var(--transition);
+        }
+        
+        #login-container { display: flex; align-items: center; justify-content: center; height: 100vh; }
+        #login-form-card { width: 100%; max-width: 400px; padding: 2.5rem; background: var(--card-background); border-radius: var(--border-radius); box-shadow: var(--shadow); }
+        #login-form-card h2 { text-align: center; margin-bottom: 2rem; }
+        .form-group { margin-bottom: 1.5rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; }
+        .form-group input { width: 100%; padding: 0.75rem; border-radius: 0.5rem; border: 1px solid var(--border-color); font-size: 1rem; background: var(--background-color); color: var(--text-color); }
+        
+        #app-wrapper { display: none; height: 100vh; }
+        .app-layout { display: flex; height: 100vh; }
+        
+        .sidebar {
+            width: 260px;
+            background: var(--card-background);
+            border-right: 1px solid var(--border-color);
+            padding: 2rem 1rem;
+            display: flex;
+            flex-direction: column;
+            transition: var(--transition);
+        }
+        .sidebar .logo { font-size: 1.75rem; font-weight: 800; color: var(--primary-color); margin-bottom: 2.5rem; display: flex; align-items: center; gap: 10px; padding: 0 1rem; }
+        .sidebar nav a { display: flex; align-items: center; padding: 1rem; margin-bottom: 0.5rem; border-radius: 0.5rem; text-decoration: none; color: var(--text-light); font-weight: 600; transition: var(--transition); white-space: nowrap; }
+        .sidebar nav a.active, .sidebar nav a:hover { background-color: var(--primary-color); color: #fff; }
+        .sidebar nav a i { width: 24px; margin-right: 1rem; text-align: center; }
+        .sidebar .profile { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border-color); }
+        .profile-info { display: flex; align-items: center; gap: 1rem; }
+        .profile-info i { font-size: 1.5rem; }
+        .sidebar-button { font-size: 0.8rem; color: var(--text-light); cursor: pointer; margin-top: 1rem; text-align: center; background: var(--background-color); padding: 0.5rem; border-radius: 0.5rem; transition: var(--transition); }
+        .sidebar-button:hover { color: var(--text-color); }
+        
+        .main-content { flex-grow: 1; height: 100vh; overflow-y: auto; padding: 2rem; }
+        .view { display: none; animation: fadeIn 0.5s ease-in-out; }
+        .view.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
+        header h1 { font-size: 2.25rem; }
+
+        .card { background: var(--card-background); border-radius: var(--border-radius); box-shadow: var(--shadow); padding: 2rem; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+        .stat-card { padding: 1.5rem; cursor: pointer; transition: var(--transition); }
+        .stat-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); }
+        .stat-card .icon { font-size: 1.5rem; margin-bottom: 1rem; padding: 1rem; border-radius: 50%; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; }
+        .stat-card .icon.critical { background: rgba(239, 68, 68, 0.1); color: var(--danger-color); }
+        .stat-card .icon.urgent { background: rgba(249, 115, 22, 0.1); color: var(--warning-color); }
+        .stat-card .icon.total { background: rgba(37, 99, 235, 0.1); color: var(--primary-color); }
+        .stat-card .icon.resolved { background: rgba(16, 185, 129, 0.1); color: var(--resolved-color); }
+        .stat-card .value { font-size: 2.5rem; font-weight: 800; }
+        .stat-card .label { font-size: 1rem; color: var(--text-light); }
+
+        .table-wrapper { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; min-width: 800px; }
+        th, td { padding: 1rem; text-align: left; border-bottom: 1px solid var(--border-color); }
+        th { font-weight: 600; color: var(--text-light); text-transform: uppercase; font-size: 0.8rem; }
+        td { font-weight: 500; }
+        .priority-dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; margin-right: 0.5rem; }
+        .priority-critical { background-color: var(--danger-color); }
+        .priority-urgent { background-color: var(--warning-color); }
+        .priority-routine { background-color: var(--routine-color); }
+        
+        /* Severity Indicator Styles */
+        .severity-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .severity-pill {
+            padding: 0.25rem 0.75rem;
+            border-radius: 99px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #fff;
+            text-transform: uppercase;
+        }
+        
+        .severity-0 { background-color: #10b981; } /* Minor - Green */
+        .severity-1 { background-color: #f59e0b; } /* Moderate - Amber */
+        .severity-2 { background-color: #ef4444; } /* Severe - Red */
+        .severity-3 { background-color: #7c3aed; } /* Critical - Purple */
+        
+        .severity-icon {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        
+        #map-container, .chart-container { height: 600px; width: 100%; border-radius: var(--border-radius); overflow: hidden; }
+        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-content { background: var(--card-background); border-radius: var(--border-radius); padding: 2rem; width: 90%; max-width: 800px; max-height: 90vh; display: flex; flex-direction: column; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+        .modal-header h2 { font-size: 1.5rem; }
+        .modal-close { font-size: 1.5rem; cursor: pointer; border: none; background: none; color: var(--text-color); }
+        .modal-body { overflow-y: auto; }
+        .issue-details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem; }
+        .issue-details-grid img { width: 100%; border-radius: 0.5rem; margin-bottom: 1rem; }
+        #detail-map-container { height: 200px; border-radius: 0.5rem; margin-top: 1rem; }
+        
+        .btn { background: var(--primary-color); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: var(--transition); }
+        .btn:hover { opacity: 0.8; }
+        
+        .form-group select, .form-group textarea { width: 100%; padding: 0.75rem; border-radius: 0.5rem; border: 1px solid var(--border-color); font-size: 1rem; background: var(--background-color); color: var(--text-color); }
+        
+        .toast { position: fixed; bottom: 2rem; right: 2rem; background: var(--card-background); padding: 1rem 1.5rem; border-radius: 0.5rem; box-shadow: var(--shadow); z-index: 2000; transform: translateY(200%); transition: transform 0.3s; }
+        .toast.show { transform: translateY(0); }
+        .toast.success { background: var(--secondary-color); color: white; }
+        .toast.error { background: var(--danger-color); color: white; }
+        
+        /* Severity Filter Styles */
+        .severity-filter {
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .severity-filter label {
+            font-weight: 600;
+        }
+        
+        .severity-filter select {
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+            background: var(--background-color);
+            color: var(--text-color);
+            font-size: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div id="login-container">
+        <div id="login-form-card">
+            <h2>Authority Portal Login</h2>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="officialId">Official ID</label>
+                    <input type="text" id="officialId" value="OFFICER_123" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" value="password" required>
+                </div>
+                <button type="submit" class="btn" style="width: 100%;">Login</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="app-wrapper">
+        <div class="app-layout">
+            <aside class="sidebar">
+                <div>
+                    <div class="logo"><i class="fas fa-gavel"></i><span>CivicPulse</span></div>
+                    <nav>
+                        <a href="#" class="active" data-view="dashboard"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></a>
+                        <a href="#" data-view="map"><i class="fas fa-map-marked-alt"></i><span>Issue Map</span></a>
+                        <a href="#" data-view="analytics"><i class="fas fa-chart-line"></i><span>Analytics</span></a>
+                        <a href="#" data-view="resolved"><i class="fas fa-check-circle"></i><span>Resolved Issues</span></a>
+                    </nav>
+                </div>
+                <div class="profile">
+                    <div class="profile-info">
+                        <i class="fas fa-user-shield"></i>
+                        <div>
+                            <div id="official-name" style="font-weight: 600;">Loading...</div>
+                            <button id="logoutBtn" style="background:none; border:none; color: var(--text-light); cursor: pointer; padding:0; text-align: left;">Logout</button>
+                        </div>
+                    </div>
+                     <div id="dark-mode-toggle" class="sidebar-button"><i class="fas fa-moon"></i> <span>Dark Mode</span></div>
+                </div>
+            </aside>
+            <main class="main-content">
+                <div id="dashboard-view" class="view active">
+                     <header><h1>Dashboard Overview</h1></header>
+                     <div class="stats-grid">
+                        <div class="stat-card card clickable" data-filter="critical">
+                            <div class="icon critical"><i class="fas fa-exclamation-triangle"></i></div>
+                            <div class="value" id="critical-count">0</div>
+                            <div class="label">Critical Issues</div>
+                        </div>
+                         <div class="stat-card card clickable" data-filter="urgent">
+                            <div class="icon urgent"><i class="fas fa-fire"></i></div>
+                            <div class="value" id="urgent-count">0</div>
+                            <div class="label">Urgent Issues</div>
+                        </div>
+                         <div class="stat-card card clickable" data-filter="active">
+                            <div class="icon total"><i class="fas fa-list-ul"></i></div>
+                            <div class="value" id="total-count">0</div>
+                            <div class="label">Total Active Issues</div>
+                        </div>
+                         <div class="stat-card card clickable" data-view="resolved">
+                            <div class="icon resolved"><i class="fas fa-check-double"></i></div>
+                            <div class="value" id="resolved-count">0</div>
+                            <div class="label">Total Resolved</div>
+                        </div>
+                     </div>
+                     <div class="card">
+                         <div class="severity-filter">
+                             <label for="severity-filter">Filter by Severity:</label>
+                             <select id="severity-filter">
+                                 <option value="all">All Issues</option>
+                                 <option value="3">Critical Only</option>
+                                 <option value="2">Severe</option>
+                                 <option value="1">Moderate</option>
+                                 <option value="0">Minor</option>
+                             </select>
+                         </div>
+                         <h2>Priority Queue</h2>
+                         <div class="table-wrapper">
+                             <table>
+                                <thead><tr><th>Priority</th><th>Issue</th><th>Category</th><th>Severity</th><th>Reported On</th><th>Status</th><th>Actions</th></tr></thead>
+                                <tbody id="issues-table-body"></tbody>
+                            </table>
+                         </div>
+                     </div>
+                </div>
+                <div id="map-view" class="view">
+                    <header><h1>Geographic Issue Hotspots</h1></header>
+                    <div class="card" style="padding: 0.5rem;"><div id="map-container"></div></div>
+                </div>
+                <div id="analytics-view" class="view">
+                     <header><h1>Analytics & Reports</h1></header>
+                     <div class="charts-grid">
+                        <div class="card">
+                            <h3>Issues by Category</h3>
+                            <div class="chart-container"><canvas id="categoryChart"></canvas></div>
+                        </div>
+                        <div class="card">
+                            <h3>Resolution Time (Avg. Days)</h3>
+                            <div class="chart-container"><canvas id="resolutionChart"></canvas></div>
+                        </div>
+                     </div>
+                </div>
+                <div id="resolved-view" class="view">
+                     <header><h1>Resolved Issues Archive</h1></header>
+                      <div class="card">
+                         <h2>Completed Tasks</h2>
+                         <div class="table-wrapper">
+                            <table>
+                                <thead><tr><th>Priority</th><th>Issue</th><th>Category</th><th>Severity</th><th>Reported On</th><th>Status</th><th>Actions</th></tr></thead>
+                                <tbody id="resolved-table-body"></tbody>
+                            </table>
+                         </div>
+                     </div>
+                </div>
+            </main>
+        </div>
+    </div>
+    <div id="modal-container"></div>
+    <div id="toast-container"></div>
+
+<script>
+(function() {
+    'use strict';
+    
+    const API_BASE_URL = 'http://localhost:5000/api';
+    const getAuthToken = () => localStorage.getItem('authority_token');
+    const setAuthToken = (token) => localStorage.setItem('authority_token', token);
+    const clearAuthToken = () => localStorage.removeItem('authority_token');
+
+    const apiCall = async (endpoint, options = {}) => {
+        const token = getAuthToken();
+        const headers = {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` }),
+            ...options.headers
+        };
+
+        try {
+            const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                ...options,
+                headers
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'API request failed');
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('API Error:', error);
+            throw error;
+        }
+    };
+
+    const API = {
+        authority: {
+            login: (credentials) => apiCall('/authority/login', { method: 'POST', body: JSON.stringify(credentials) }),
+            getIssues: (status = 'all') => apiCall(`/authority/issues?status=${status}`),
+            updateStatus: (id, data) => apiCall(`/authority/issues/${id}/status`, { method: 'PUT', body: JSON.stringify(data) }),
+            getStats: () => apiCall('/authority/stats'),
+            getAnalytics: () => apiCall('/authority/analytics')
+        }
+    };
+
+    const appState = {
+        currentAuthority: null,
+        issues: [],
+        stats: {},
+        map: null,
+        charts: {}
+    };
+
+    const DOMElements = {
+        loginContainer: document.getElementById('login-container'),
+        appWrapper: document.getElementById('app-wrapper'),
+        loginForm: document.getElementById('login-form'),
+        logoutBtn: document.getElementById('logoutBtn'),
+        issuesTableBody: document.getElementById('issues-table-body'),
+        resolvedTableBody: document.getElementById('resolved-table-body'),
+        navLinks: document.querySelectorAll('.sidebar nav a'),
+        views: document.querySelectorAll('.main-content .view'),
+        modalContainer: document.getElementById('modal-container'),
+        criticalCount: document.getElementById('critical-count'),
+        urgentCount: document.getElementById('urgent-count'),
+        totalCount: document.getElementById('total-count'),
+        resolvedCount: document.getElementById('resolved-count'),
+        darkModeToggle: document.getElementById('dark-mode-toggle'),
+        officialName: document.getElementById('official-name'),
+        toastContainer: document.getElementById('toast-container'),
+        severityFilter: document.getElementById('severity-filter')
+    };
+
+    // Get severity label
+    const getSeverityLabel = (severity) => {
+        const labels = ['Minor', 'Moderate', 'Severe', 'Critical'];
+        return labels[severity] || 'Unknown';
+    };
+
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        DOMElements.toastContainer.appendChild(toast);
+        setTimeout(() => toast.classList.add('show'), 10);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    function calculatePriority(issue) {
+        const categoryWeights = { 
+            "Public Safety": 1.5, "Sanitation": 1.2, "Water Supply": 1.1, 
+            "Roads": 1.0, "Electricity": 0.9, "Other": 0.7 
+        };
+        const score = (issue.upvotes * 1) + (categoryWeights[issue.category] || 1.0) * 50;
+        return Math.round(score);
+    }
+
+    function getPriorityLevel(score) {
+        if (score > 200) return { label: 'Critical', class: 'priority-critical' };
+        if (score > 100) return { label: 'Urgent', class: 'priority-urgent' };
+        return { label: 'Routine', class: 'priority-routine' };
+    }
+
+    function populateTable(tbody, issues) {
+        tbody.innerHTML = '';
+        if (issues.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color: var(--text-light);">No issues found</td></tr>';
+            return;
+        }
+        issues.forEach(issue => {
+            const priorityScore = calculatePriority(issue);
+            const priority = getPriorityLevel(priorityScore);
+            const severity = issue.severity || 1;
+            const isCritical = issue.is_critical || severity === 3;
+            
+            const row = document.createElement('tr');
+            if (isCritical) {
+                row.style.backgroundColor = 'rgba(124, 58, 237, 0.1)';
+            }
+            
+            row.innerHTML = `
+                <td><span class="priority-dot ${priority.class}"></span>${priority.label} (${priorityScore})</td>
+                <td>${issue.title}</td>
+                <td>${issue.category}</td>
+                <td>
+                    <div class="severity-indicator">
+                        <span class="severity-pill severity-${severity}">${getSeverityLabel(severity)}</span>
+                        ${isCritical ? '<i class="fas fa-exclamation-triangle" style="color: var(--danger-color);"></i>' : ''}
+                    </div>
+                </td>
+                <td>${new Date(issue.created_at || issue.date).toLocaleDateString()}</td>
+                <td>${issue.status}</td>
+                <td><button class="btn view-details" data-issue-id="${issue._id || issue.id}">Details</button></td>`;
+            tbody.appendChild(row);
+        });
+    }
+
+    function openFilteredIssueListModal(filter) {
+        let issuesToShow, title;
+        const issuesWithPriority = appState.issues.map(issue => ({ 
+            ...issue, 
+            priorityScore: calculatePriority(issue) 
+        }));
+        const activeIssues = issuesWithPriority.filter(i => i.status !== 'Resolved');
+
+        switch (filter) {
+            case 'critical':
+                issuesToShow = activeIssues.filter(i => i.severity === 3 || i.is_critical);
+                title = "Critical Issues";
+                break;
+            case 'urgent':
+                issuesToShow = activeIssues.filter(i => i.severity === 2);
+                title = "Severe Issues";
+                break;
+            case 'active':
+                issuesToShow = activeIssues;
+                title = "All Active Issues";
+                break;
+            default:
+                issuesToShow = [];
+                title = "Issues";
+        }
+        
+        const modalHTML = `
+            <div class="modal-overlay">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>${title}</h2>
+                        <button class="modal-close">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Priority</th>
+                                        <th>Issue</th>
+                                        <th>Category</th>
+                                        <th>Severity</th>
+                                        <th>Upvotes</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="modal-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        DOMElements.modalContainer.innerHTML = modalHTML;
+        
+        const modalTableBody = document.getElementById('modal-table-body');
+        modalTableBody.innerHTML = '';
+        if (issuesToShow.length === 0) {
+            modalTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; color: var(--text-light);">No issues found</td></tr>';
+            return;
+        }
+        
+        issuesToShow.forEach(issue => {
+            const priority = getPriorityLevel(issue.priorityScore);
+            const severity = issue.severity || 1;
+            const isCritical = issue.is_critical || severity === 3;
+            
+            const row = document.createElement('tr');
+            if (isCritical) {
+                row.style.backgroundColor = 'rgba(124, 58, 237, 0.1)';
+            }
+            
+            row.innerHTML = `
+                <td><span class="priority-dot ${priority.class}"></span>${priority.label} (${issue.priorityScore})</td>
+                <td>${issue.title}</td>
+                <td>${issue.category}</td>
+                <td>
+                    <div class="severity-indicator">
+                        <span class="severity-pill severity-${severity}">${getSeverityLabel(severity)}</span>
+                        ${isCritical ? '<i class="fas fa-exclamation-triangle" style="color: var(--danger-color);"></i>' : ''}
+                    </div>
+                </td>
+                <td>${issue.upvotes}</td>
+                <td>${issue.status}</td>
+                <td><button class="btn view-details" data-issue-id="${issue._id || issue.id}">Details</button></td>`;
+            modalTableBody.appendChild(row);
+        });
+    }
+
+    async function loadIssues() {
+        try {
+            appState.issues = await API.authority.getIssues();
+            return appState.issues;
+        } catch (error) {
+            console.error('Error loading issues:', error);
+            return [];
+        }
+    }
+
+    async function loadStats() {
+        try {
+            appState.stats = await API.authority.getStats();
+            DOMElements.criticalCount.textContent = appState.stats.critical || 0;
+            DOMElements.urgentCount.textContent = appState.stats.urgent || 0;
+            DOMElements.totalCount.textContent = appState.stats.total || 0;
+            DOMElements.resolvedCount.textContent = appState.stats.resolved || 0;
+        } catch (error) {
+            console.error('Error loading stats:', error);
+        }
+    }
+
+    async function renderDashboard() {
+        await loadIssues();
+        await loadStats();
+        
+        const issuesWithPriority = appState.issues.map(issue => ({ 
+            ...issue, 
+            priorityScore: calculatePriority(issue) 
+        }));
+        
+        const activeIssues = issuesWithPriority.filter(i => i.status !== 'Resolved');
+        const sortedActive = activeIssues.sort((a, b) => {
+            // First sort by severity (critical first), then by priority score
+            if (a.severity !== b.severity) {
+                return (b.severity || 1) - (a.severity || 1);
+            }
+            return b.priorityScore - a.priorityScore;
+        });
+        
+        // Apply severity filter if set
+        const severityFilter = DOMElements.severityFilter.value;
+        let filteredIssues = sortedActive;
+        if (severityFilter !== 'all') {
+            const severityValue = parseInt(severityFilter);
+            filteredIssues = sortedActive.filter(issue => 
+                issue.severity === severityValue || (severityValue === 3 && issue.is_critical)
+            );
+        }
+        
+        populateTable(DOMElements.issuesTableBody, filteredIssues);
+    }
+
+    async function renderResolved() {
+        const issues = await API.authority.getIssues('Resolved');
+        const issuesWithPriority = issues.map(issue => ({ 
+            ...issue, 
+            priorityScore: calculatePriority(issue) 
+        }));
+        
+        // Apply severity filter if set
+        const severityFilter = DOMElements.severityFilter.value;
+        let filteredIssues = issuesWithPriority;
+        if (severityFilter !== 'all') {
+            const severityValue = parseInt(severityFilter);
+            filteredIssues = issuesWithPriority.filter(issue => 
+                issue.severity === severityValue || (severityValue === 3 && issue.is_critical)
+            );
+        }
+        
+        populateTable(DOMElements.resolvedTableBody, filteredIssues);
+    }
+
+    function renderMap() {
+        setTimeout(async () => {
+            if (appState.map) appState.map.remove();
+            appState.map = L.map('map-container').setView([12.8585, 80.1800], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(appState.map);
+
+            const activeIssues = appState.issues.filter(i => i.status !== 'Resolved');
+            const heatPoints = activeIssues.map(issue => {
+                const lat = issue.coordinates?.lat || issue.lat;
+                const lng = issue.coordinates?.lng || issue.lng;
+                const intensity = (issue.severity || 1) * 10; // Scale by severity
+                return [lat, lng, intensity];
+            });
+
+            if (heatPoints.length > 0) {
+                L.heatLayer(heatPoints, { radius: 25, blur: 15, maxZoom: 17, max: 50.0 }).addTo(appState.map);
+            }
+
+            activeIssues.forEach(issue => {
+                const lat = issue.coordinates?.lat || issue.lat;
+                const lng = issue.coordinates?.lng || issue.lng;
+                if (lat && lng) {
+                    const marker = L.marker([lat, lng]).addTo(appState.map);
+                    marker.bindPopup(`<b>${issue.title}</b><br/>Severity: ${getSeverityLabel(issue.severity || 1)}<br/>Status: ${issue.status}<br/>Upvotes: ${issue.upvotes}`)
+                        .on('click', () => openDetailsModal(issue._id || issue.id));
+                    
+                    // Color marker based on severity
+                    const color = issue.severity === 3 ? '#7c3aed' : 
+                                  issue.severity === 2 ? '#ef4444' : 
+                                  issue.severity === 1 ? '#f59e0b' : '#10b981';
+                    
+                    marker.setIcon(L.divIcon({
+                        className: 'custom-marker',
+                        html: `<div style="background-color: ${color}; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white;"></div>`,
+                        iconSize: [20, 20]
+                    }));
+                }
+            });
+        }, 100);
+    }
+
+    async function renderAnalytics() {
+        try {
+            const analytics = await API.authority.getAnalytics();
+            
+            const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+            const resolutionCtx = document.getElementById('resolutionChart').getContext('2d');
+            
+            if (appState.charts.category) appState.charts.category.destroy();
+            appState.charts.category = new Chart(categoryCtx, {
+                type: 'pie',
+                data: {
+                    labels: analytics.byCategory.map(c => c._id),
+                    datasets: [{
+                        data: analytics.byCategory.map(c => c.count),
+                        backgroundColor: ['#ef4444', '#f97316', '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6']
+                    }]
+                }
+            });
+
+            if (appState.charts.resolution) appState.charts.resolution.destroy();
+            appState.charts.resolution = new Chart(resolutionCtx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(analytics.avgResolutionTime),
+                    datasets: [{
+                        label: 'Avg. Days',
+                        data: Object.values(analytics.avgResolutionTime),
+                        backgroundColor: '#2563eb'
+                    }]
+                },
+                options: { scales: { y: { beginAtZero: true } } }
+            });
+        } catch (error) {
+            console.error('Error loading analytics:', error);
+        }
+    }
+
+    function openDetailsModal(issueId) {
+        const issue = appState.issues.find(i => (i._id || i.id) == issueId);
+        if (!issue) return;
+
+        const departments = [
+            'Public Works Department',
+            'Electricity Board',
+            'Sanitation Department',
+            'Water Board',
+            'Traffic Police',
+            'Forestry Department'
+        ];
+        const deptOptions = departments.map(d => `<option value="${d}">${d}</option>`).join('');
+        
+        const modalHTML = `
+            <div class="modal-overlay">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Issue Details (ID: ${issue._id || issue.id})</h2><button class="modal-close">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="issue-details-grid">
+                            <div>
+                                <h3>${issue.title}</h3>
+                                <p><strong>Location:</strong> ${issue.location}</p>
+                                <p><strong>Category:</strong> ${issue.category}</p>
+                                <p><strong>Description:</strong> ${issue.description}</p>
+                                <p><strong>Severity:</strong> 
+                                    <span class="severity-pill severity-${issue.severity || 1}">${getSeverityLabel(issue.severity || 1)}</span>
+                                    ${issue.is_critical ? '<i class="fas fa-exclamation-triangle" style="color: var(--danger-color);"></i>' : ''}
+                                </p>
+                                <p><strong>Upvotes:</strong> ${issue.upvotes}</p>
+                                <img src="${issue.image}" alt="${issue.title}">
+                                <div id="detail-map-container"></div>
+                            </div>
+                            <div>
+                                <h4>Case Management</h4>
+                                <div class="form-group">
+                                    <label>Assign To:</label>
+                                    <select id="assign-department">${deptOptions}</select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Update Status:</label>
+                                    <select id="update-status">
+                                        <option value="Reported" ${issue.status === 'Reported' ? 'selected' : ''}>Reported</option>
+                                        <option value="In Progress" ${issue.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                                        <option value="Resolved" ${issue.status === 'Resolved' ? 'selected' : ''}>Resolved</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Send Update to Citizen:</label>
+                                    <textarea id="citizen-update" rows="4" placeholder="Enter message to citizen..."></textarea>
+                                </div>
+                                <button class="btn" id="save-changes" data-issue-id="${issue._id || issue.id}">Save & Notify Citizen</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        DOMElements.modalContainer.innerHTML = modalHTML;
+
+        setTimeout(() => {
+            const lat = issue.coordinates?.lat || issue.lat;
+            const lng = issue.coordinates?.lng || issue.lng;
+            if (lat && lng) {
+                const detailMap = L.map('detail-map-container').setView([lat, lng], 16);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(detailMap);
+                L.marker([lat, lng]).addTo(detailMap);
+            }
+        }, 100);
+    }
+
+    async function handleLogin(e) {
+        e.preventDefault();
+        try {
+            const { authority, token } = await API.authority.login({
+                officialId: document.getElementById('officialId').value,
+                password: document.getElementById('password').value
+            });
+            
+            setAuthToken(token);
+            appState.currentAuthority = authority;
+            DOMElements.officialName.textContent = authority.name;
+            DOMElements.loginContainer.style.display = 'none';
+            DOMElements.appWrapper.style.display = 'block';
+            await renderDashboard();
+            showToast('Login successful!');
+        } catch (error) {
+            showToast(error.message, 'error');
+        }
+    }
+
+    function handleLogout() {
+        clearAuthToken();
+        appState.currentAuthority = null;
+        DOMElements.loginContainer.style.display = 'flex';
+        DOMElements.appWrapper.style.display = 'none';
+    }
+
+    function switchView(viewId) {
+        DOMElements.navLinks.forEach(l => l.classList.remove('active'));
+        document.querySelector(`nav a[data-view="${viewId}"]`)?.classList.add('active');
+        DOMElements.views.forEach(v => v.classList.remove('active'));
+        document.getElementById(`${viewId}-view`)?.classList.add('active');
+
+        if (viewId === 'map') renderMap();
+        if (viewId === 'analytics') renderAnalytics();
+        if (viewId === 'resolved') renderResolved();
+    }
+
+    // Event Listeners
+    document.addEventListener('click', async (e) => {
+        if (e.target.matches('.modal-close') || e.target.matches('.modal-overlay')) {
+            DOMElements.modalContainer.innerHTML = '';
+        }
+        
+        if (e.target.matches('.view-details')) {
+            openDetailsModal(e.target.dataset.issueId);
+        }
+        
+        if (e.target.id === 'save-changes') {
+            const issueId = e.target.dataset.issueId;
+            const status = document.getElementById('update-status').value;
+            const message = document.getElementById('citizen-update').value;
+            
+            try {
+                await API.authority.updateStatus(issueId, { status, message });
+                showToast('Issue updated successfully!');
+                DOMElements.modalContainer.innerHTML = '';
+                await renderDashboard();
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        if (e.target.closest('.stat-card.clickable')) {
+            const card = e.target.closest('.stat-card.clickable');
+            if (card.dataset.view) {
+                switchView(card.dataset.view);
+            } else if (card.dataset.filter) {
+                openFilteredIssueListModal(card.dataset.filter);
+            }
+        }
+    });
+
+    DOMElements.navLinks.forEach(link => {
+        link.addEventListener('click', e => {
+            e.preventDefault();
+            switchView(link.dataset.view);
+        });
+    });
+
+    DOMElements.darkModeToggle.addEventListener('click', () => {
+        document.body.classList.toggle('dark-mode');
+        const icon = DOMElements.darkModeToggle.querySelector('i');
+        const text = DOMElements.darkModeToggle.querySelector('span');
+        if (document.body.classList.contains('dark-mode')) {
+            icon.className = 'fas fa-sun';
+            text.textContent = 'Light Mode';
+        } else {
+            icon.className = 'fas fa-moon';
+            text.textContent = 'Dark Mode';
+        }
+    });
+
+    DOMElements.loginForm.addEventListener('submit', handleLogin);
+    DOMElements.logoutBtn.addEventListener('click', handleLogout);
+
+    // Severity filter event listener
+    DOMElements.severityFilter.addEventListener('change', () => {
+        renderDashboard();
+    });
+
+    // Auto-login if token exists
+    const token = getAuthToken();
+    if (token) {
+        DOMElements.loginContainer.style.display = 'none';
+        DOMElements.appWrapper.style.display = 'block';
+        renderDashboard();
+    }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CivicPulse - Voice-Enabled Community Reporting</title>
+    
+    <!-- External Libraries -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .main-content {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .report-form {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        /* Voice Recording Section */
+        .voice-section {
+            background: linear-gradient(135deg, #ff6b6b, #ff8e8e);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .voice-controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .voice-btn {
+            background: rgba(255,255,255,0.2);
+            border: 2px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 120px;
+            justify-content: center;
+        }
+
+        .voice-btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+
+        .voice-btn.recording {
+            background: #ff4757;
+            animation: pulse 1.5s infinite;
+        }
+
+        .voice-btn.processing {
+            background: #ffa502;
+            cursor: not-allowed;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .voice-status {
+            margin: 15px 0;
+            font-size: 14px;
+            min-height: 20px;
+        }
+
+        .voice-transcript {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            min-height: 60px;
+            text-align: left;
+            font-style: italic;
+        }
+
+        .language-selector {
+            margin: 15px 0;
+        }
+
+        .language-selector select {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 10px;
+            padding: 8px 12px;
+        }
+
+        .language-selector select option {
+            background: #333;
+            color: white;
+        }
+
+        /* Photo Upload Section */
+        .photo-upload {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .photo-upload:hover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .photo-upload.dragover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .photo-preview {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .photo-preview img {
+            width: 100px;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 2px solid #e1e5e9;
+        }
+
+        .submit-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .submit-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Map Section */
+        .map-container {
+            height: 300px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            z-index: 1000;
+            transform: translateX(400px);
+            transition: transform 0.3s;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.success {
+            background: #2ed573;
+        }
+
+        .toast.error {
+            background: #ff4757;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .voice-controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .voice-btn {
+                width: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-microphone"></i> CivicPulse</h1>
+            <p>Voice-Enabled Community Reporting Platform</p>
+        </div>
+
+        <div class="main-content">
+            <form id="reportForm" class="report-form">
+                <div class="form-group">
+                    <label for="issueType">Issue Type</label>
+                    <select id="issueType" name="issueType" required>
+                        <option value="">Select issue type</option>
+                        <option value="pothole">Pothole</option>
+                        <option value="streetlight">Broken Street Light</option>
+                        <option value="water">Water Supply Issue</option>
+                        <option value="garbage">Garbage Collection</option>
+                        <option value="drainage">Drainage Problem</option>
+                        <option value="traffic">Traffic Signal Issue</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+
+                <!-- Voice Recording Section -->
+                <div class="voice-section">
+                    <h3><i class="fas fa-microphone"></i> Voice Report</h3>
+                    <p>Describe your issue using voice - we'll convert it to text automatically!</p>
+                    
+                    <div class="language-selector">
+                        <label for="voiceLanguage">Language:</label>
+                        <select id="voiceLanguage">
+                            <option value="en-US">English (US)</option>
+                            <option value="en-IN">English (India)</option>
+                            <option value="hi-IN">हिंदी (Hindi)</option>
+                            <option value="ta-IN">தமிழ் (Tamil)</option>
+                            <option value="te-IN">తెలుగు (Telugu)</option>
+                            <option value="ml-IN">മലയാളം (Malayalam)</option>
+                            <option value="kn-IN">ಕನ್ನಡ (Kannada)</option>
+                            <option value="bn-IN">বাংলা (Bengali)</option>
+                            <option value="gu-IN">ગુજરાતી (Gujarati)</option>
+                            <option value="mr-IN">मराठी (Marathi)</option>
+                        </select>
+                    </div>
+
+                    <div class="voice-controls">
+                        <button type="button" id="startRecording" class="voice-btn">
+                            <i class="fas fa-microphone"></i> Start Recording
+                        </button>
+                        <button type="button" id="stopRecording" class="voice-btn" disabled>
+                            <i class="fas fa-stop"></i> Stop Recording
+                        </button>
+                        <button type="button" id="clearTranscript" class="voice-btn">
+                            <i class="fas fa-trash"></i> Clear
+                        </button>
+                    </div>
+
+                    <div class="voice-status" id="voiceStatus">Ready to record...</div>
+                    
+                    <div class="voice-transcript" id="voiceTranscript">
+                        Your voice will be transcribed here...
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Issue Description</label>
+                    <textarea id="description" name="description" rows="6" 
+                              placeholder="Describe the issue in detail (or use voice recording above)..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="location">Location</label>
+                    <input type="text" id="location" name="location" 
+                           placeholder="Click on map to select location or type address">
+                    <div id="map" class="map-container"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="photos">Upload Photos</label>
+                    <div class="photo-upload" id="photoUpload">
+                        <i class="fas fa-camera fa-2x" style="color: #ccc;"></i>
+                        <p>Click to upload photos or drag and drop</p>
+                        <input type="file" id="photos" name="photos" multiple accept="image/*" style="display: none;">
+                        <div class="photo-preview" id="photoPreview"></div>
+                    </div>
+                </div>
+
+                <button type="submit" class="submit-btn" id="submitBtn">
+                    <i class="fas fa-paper-plane"></i> Submit Report
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="toastContainer"></div>
+
+    <script>
+        class CivicPulseVoiceReporter {
+            constructor() {
+                this.map = null;
+                this.userLocation = null;
+                this.mediaRecorder = null;
+                this.audioChunks = [];
+                this.isRecording = false;
+                this.recognition = null;
+                this.currentLanguage = 'en-US';
+                
+                this.initializeApp();
+            }
+
+            initializeApp() {
+                this.initializeMap();
+                this.initializeVoiceRecognition();
+                this.bindEventListeners();
+                this.getUserLocation();
+            }
+
+            initializeMap() {
+                this.map = L.map('map').setView([20.5937, 78.9629], 5);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(this.map);
+
+                this.map.on('click', (e) => {
+                    this.setLocationFromMap(e.latlng);
+                });
+            }
+
+            initializeVoiceRecognition() {
+                // Check for speech recognition support
+                if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                    this.recognition = new SpeechRecognition();
+                    
+                    this.recognition.continuous = true;
+                    this.recognition.interimResults = true;
+                    this.recognition.lang = this.currentLanguage;
+                    
+                    this.recognition.onstart = () => {
+                        this.updateVoiceStatus('Listening... Speak now!');
+                    };
+                    
+                    this.recognition.onresult = (event) => {
+                        this.handleSpeechResult(event);
+                    };
+                    
+                    this.recognition.onerror = (event) => {
+                        this.handleSpeechError(event);
+                    };
+                    
+                    this.recognition.onend = () => {
+                        this.stopRecording();
+                    };
+                } else {
+                    this.showToast('Speech recognition not supported in this browser', 'error');
+                    document.querySelector('.voice-section').style.display = 'none';
+                }
+            }
+
+            bindEventListeners() {
+                // Voice recording controls
+                document.getElementById('startRecording').addEventListener('click', () => this.startRecording());
+                document.getElementById('stopRecording').addEventListener('click', () => this.stopRecording());
+                document.getElementById('clearTranscript').addEventListener('click', () => this.clearTranscript());
+                
+                // Language selection
+                document.getElementById('voiceLanguage').addEventListener('change', (e) => {
+                    this.currentLanguage = e.target.value;
+                    if (this.recognition) {
+                        this.recognition.lang = this.currentLanguage;
+                    }
+                });
+
+                // Photo upload
+                document.getElementById('photoUpload').addEventListener('click', () => {
+                    document.getElementById('photos').click();
+                });
+                
+                document.getElementById('photos').addEventListener('change', (e) => {
+                    this.handlePhotoUpload(e.files);
+                });
+
+                // Drag and drop for photos
+                const photoUpload = document.getElementById('photoUpload');
+                photoUpload.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    photoUpload.classList.add('dragover');
+                });
+                
+                photoUpload.addEventListener('dragleave', () => {
+                    photoUpload.classList.remove('dragover');
+                });
+                
+                photoUpload.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    photoUpload.classList.remove('dragover');
+                    this.handlePhotoUpload(e.dataTransfer.files);
+                });
+
+                // Form submission
+                document.getElementById('reportForm').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.submitReport();
+                });
+            }
+
+            startRecording() {
+                if (!this.recognition) {
+                    this.showToast('Speech recognition not available', 'error');
+                    return;
+                }
+
+                if (this.isRecording) return;
+
+                this.isRecording = true;
+                document.getElementById('startRecording').disabled = true;
+                document.getElementById('startRecording').classList.add('recording');
+                document.getElementById('stopRecording').disabled = false;
+                
+                try {
+                    this.recognition.start();
+                } catch (error) {
+                    this.handleSpeechError({ error: 'start-error' });
+                }
+            }
+
+            stopRecording() {
+                if (!this.isRecording) return;
+
+                this.isRecording = false;
+                document.getElementById('startRecording').disabled = false;
+                document.getElementById('startRecording').classList.remove('recording');
+                document.getElementById('stopRecording').disabled = true;
+                
+                if (this.recognition) {
+                    this.recognition.stop();
+                }
+                
+                this.updateVoiceStatus('Recording stopped.');
+            }
+
+            handleSpeechResult(event) {
+                let finalTranscript = '';
+                let interimTranscript = '';
+                
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript;
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+                
+                const transcriptDiv = document.getElementById('voiceTranscript');
+                const descriptionTextarea = document.getElementById('description');
+                
+                // Update transcript display
+                transcriptDiv.innerHTML = (descriptionTextarea.value + finalTranscript + 
+                    '<span style="color: rgba(255,255,255,0.7);">' + interimTranscript + '</span>');
+                
+                // Update the description field with final transcript
+                if (finalTranscript) {
+                    descriptionTextarea.value += finalTranscript;
+                }
+            }
+
+            handleSpeechError(event) {
+                let errorMessage = 'Speech recognition error: ';
+                
+                switch (event.error) {
+                    case 'no-speech':
+                        errorMessage += 'No speech detected. Please try again.';
+                        break;
+                    case 'audio-capture':
+                        errorMessage += 'Microphone not available.';
+                        break;
+                    case 'not-allowed':
+                        errorMessage += 'Microphone permission denied.';
+                        break;
+                    case 'network':
+                        errorMessage += 'Network error. Check your connection.';
+                        break;
+                    default:
+                        errorMessage += event.error || 'Unknown error occurred.';
+                }
+                
+                this.updateVoiceStatus(errorMessage);
+                this.showToast(errorMessage, 'error');
+                this.stopRecording();
+            }
+
+            updateVoiceStatus(message) {
+                document.getElementById('voiceStatus').textContent = message;
+            }
+
+            clearTranscript() {
+                document.getElementById('voiceTranscript').innerHTML = 'Your voice will be transcribed here...';
+                document.getElementById('description').value = '';
+                this.updateVoiceStatus('Transcript cleared. Ready to record...');
+            }
+
+            getUserLocation() {
+                if ('geolocation' in navigator) {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            this.userLocation = {
+                                lat: position.coords.latitude,
+                                lng: position.coords.longitude
+                            };
+                            
+                            this.map.setView([this.userLocation.lat, this.userLocation.lng], 15);
+                            
+                            L.marker([this.userLocation.lat, this.userLocation.lng])
+                                .addTo(this.map)
+                                .bindPopup('Your Location')
+                                .openPopup();
+                                
+                            this.reverseGeocode(this.userLocation.lat, this.userLocation.lng);
+                        },
+                        (error) => {
+                            console.log('Location access denied:', error);
+                        }
+                    );
+                }
+            }
+
+            setLocationFromMap(latlng) {
+                // Clear existing markers
+                this.map.eachLayer((layer) => {
+                    if (layer instanceof L.Marker) {
+                        this.map.removeLayer(layer);
+                    }
+                });
+
+                // Add new marker
+                L.marker([latlng.lat, latlng.lng])
+                    .addTo(this.map)
+                    .bindPopup('Selected Location')
+                    .openPopup();
+
+                this.reverseGeocode(latlng.lat, latlng.lng);
+            }
+
+            reverseGeocode(lat, lng) {
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('location').value = data.display_name;
+                    })
+                    .catch(error => {
+                        console.error('Reverse geocoding error:', error);
+                        document.getElementById('location').value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                    });
+            }
+
+            handlePhotoUpload(files) {
+                const preview = document.getElementById('photoPreview');
+                
+                Array.from(files).forEach(file => {
+                    if (file.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            const img = document.createElement('img');
+                            img.src = e.target.result;
+                            preview.appendChild(img);
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                });
+            }
+
+            async submitReport() {
+                const submitBtn = document.getElementById('submitBtn');
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+
+                try {
+                    const formData = new FormData(document.getElementById('reportForm'));
+                    
+                    // Add location data
+                    if (this.userLocation) {
+                        formData.append('latitude', this.userLocation.lat);
+                        formData.append('longitude', this.userLocation.lng);
+                    }
+
+                    // Simulate API call (replace with your actual API endpoint)
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    
+                    this.showToast('Report submitted successfully!', 'success');
+                    document.getElementById('reportForm').reset();
+                    document.getElementById('photoPreview').innerHTML = '';
+                    this.clearTranscript();
+                    
+                } catch (error) {
+                    this.showToast('Failed to submit report. Please try again.', 'error');
+                    console.error('Submit error:', error);
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Report';
+                }
+            }
+
+            showToast(message, type = 'info') {
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                toast.textContent = message;
+                
+                document.getElementById('toastContainer').appendChild(toast);
+                
+                setTimeout(() => toast.classList.add('show'), 100);
+                
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                    setTimeout(() => toast.remove(), 300);
+                }, 4000);
+            }
+        }
+
+        // Initialize the app when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new CivicPulseVoiceReporter();
+        });
+    </script>
+</body>
+</html> 
+

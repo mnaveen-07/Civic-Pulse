@@ -1,0 +1,2210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CivicPulse - Enhanced Community Reporting</title>
+
+    <!-- PWA Manifest Link -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4f46e5">
+    
+    <!-- External Libraries -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&family=Open+Sans:wght@400;600;700&family=Lato:wght@400;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- 1. ROOT & THEME DEFINITIONS --- */
+        :root {
+            --primary-color: #4f46e5;
+            --secondary-color: #10b981;
+            --accent-color: #f97316;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+            --background-color: #f1f5f9;
+            --card-background: #ffffff;
+            --text-color: #0f172a;
+            --text-light: #64748b;
+            --border-color: #e2e8f0;
+            --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.1);
+            --border-radius: 0.75rem;
+            --font-family: 'Inter', sans-serif;
+            font-size: 16px;
+        }
+        
+        body.dark-mode {
+            --background-color: #0f172a;
+            --card-background: #1e293b;
+            --text-color: #f1f5f9;
+            --text-light: #94a3b8;
+            --border-color: #334155;
+        }
+
+        /* --- 2. BASE & LAYOUT STYLES --- */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: var(--font-family);
+            background-color: var(--background-color);
+            color: var(--text-color);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .app-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            transition: opacity 0.5s ease;
+        }
+
+        .app-container.logged-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: var(--card-background);
+            padding: 2rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            transition: width 0.3s ease, background-color 0.3s, transform 0.3s ease;
+            position: relative;
+            z-index: 100;
+        }
+        
+        .main-content { flex-grow: 1; height: 100vh; overflow-y: auto; padding: 2rem; position: relative; }
+        .view { display: none; animation: fadeIn 0.5s ease-in-out; }
+        .view.active { display: block; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .menu-toggle { display: none; }
+
+        .sidebar .logo {
+            font-size: 1.75rem; font-weight: 800; color: var(--primary-color);
+            margin-bottom: 2.5rem; display: flex; align-items: center; gap: 10px;
+        }
+        .sidebar .logo span { color: var(--secondary-color); }
+        .sidebar nav a {
+            display: flex; align-items: center; padding: 1rem; margin-bottom: 0.5rem;
+            border-radius: 0.5rem; text-decoration: none; color: var(--text-light);
+            font-weight: 600; transition: all 0.3s; white-space: nowrap; cursor: pointer;
+        }
+        .sidebar nav a.active, .sidebar nav a:hover {
+            background-color: var(--primary-color); color: #fff;
+            transform: translateX(5px); box-shadow: var(--shadow);
+        }
+        .sidebar nav a i { width: 24px; margin-right: 1.25rem; }
+
+        .profile {
+            margin-top: auto; padding: 1rem; border-radius: var(--border-radius);
+            display: flex; align-items: center; cursor: pointer;
+            border: 1px solid transparent; transition: all 0.3s;
+        }
+        .profile:hover { border-color: var(--border-color); background: var(--background-color); }
+        .profile img { width: 45px; height: 45px; border-radius: 50%; margin-right: 1rem; object-fit: cover; }
+        .profile .profile-info { display: flex; flex-direction: column; justify-content: center; }
+        .profile .name { font-weight: 700; }
+        .profile .score { color: var(--text-light); font-size: 0.875rem; }
+
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
+        header h1 { font-size: 2.25rem; font-weight: 800; }
+        .header-actions { display: flex; align-items: center; gap: 1rem; }
+
+        .action-btn {
+            background: var(--card-background); border: 1px solid var(--border-color);
+            color: var(--text-color); width: 45px; height: 45px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+            transition: all 0.3s; position: relative;
+        }
+        .action-btn:hover { background: var(--primary-color); color: #fff; transform: translateY(-2px); }
+        .action-btn .badge {
+            position: absolute; top: -5px; right: -5px; background: var(--danger-color);
+            color: white; width: 20px; height: 20px; border-radius: 50%;
+            font-size: 0.75rem; font-weight: bold; display: flex; align-items: center; justify-content: center;
+            border: 2px solid var(--card-background);
+        }
+
+        .report-button, .btn {
+            background: var(--primary-color); color: #fff;
+            border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-size: 1rem;
+            font-weight: 600; cursor: pointer; transition: all 0.3s;
+            box-shadow: var(--shadow); display: flex; align-items: center; justify-content: center; gap: 10px;
+        }
+        .report-button:hover, .btn:hover { transform: translateY(-3px) scale(1.03); box-shadow: var(--shadow-lg); }
+        .btn.secondary { background: var(--text-light); }
+        .btn.danger { background: var(--danger-color); }
+        .btn.warning { background: var(--warning-color); }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-bottom: 2.5rem; }
+        .stat-card { background: var(--card-background); padding: 1.5rem; border-radius: var(--border-radius); box-shadow: var(--shadow); transition: all 0.3s; }
+        .stat-card.clickable { cursor: pointer; }
+        .stat-card.clickable:hover { transform: translateY(-5px); box-shadow: var(--shadow-lg); }
+        .stat-header { display: flex; align-items: center; margin-bottom: 1rem; }
+        .stat-icon { width: 40px; height: 40px; border-radius: 10px; display:flex; align-items:center; justify-content:center; font-size: 18px; margin-right: 1rem; }
+        .stat-icon.reports { background-color: rgba(79, 70, 229, 0.1); color: var(--primary-color); }
+        .stat-icon.progress { background-color: rgba(245, 158, 11, 0.1); color: var(--warning-color); }
+        .stat-icon.resolved { background-color: rgba(16, 185, 129, 0.1); color: var(--secondary-color); }
+        .stat-icon.spam { background-color: rgba(239, 68, 68, 0.1); color: var(--danger-color); }
+        .stat-title { font-size: 0.875rem; color: var(--text-light); }
+        .stat-value { font-size: 2rem; font-weight: 800; }
+        
+        .issues-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
+        .issue-card { background: var(--card-background); padding: 1rem; border-radius: var(--border-radius); box-shadow: var(--shadow); cursor: pointer; transition: all 0.3s; display: flex; flex-direction: column; position: relative; }
+        .issue-card:hover { transform: translateY(-8px); box-shadow: var(--shadow-lg); }
+        .issue-card .card-image { width: 100%; height: 180px; object-fit: cover; border-radius: 0.5rem; margin-bottom: 1rem; }
+        .issue-card h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 0.25rem; }
+        .issue-card .location { color: var(--text-light); font-size: 0.875rem; margin-bottom: 1rem; }
+        .card-footer { margin-top: auto; display: flex; justify-content: space-between; align-items: center; padding-top: 1rem; border-top: 1px solid var(--border-color);}
+        .card-actions { display: flex; gap: 0.5rem; align-items: center; }
+        
+        /* Image Gallery Styles */
+        .image-gallery { position: relative; }
+        .image-gallery .main-image { width: 100%; height: 180px; object-fit: cover; border-radius: 0.5rem; margin-bottom: 0.5rem; }
+        .image-gallery .thumbnail-row { display: flex; gap: 0.25rem; overflow-x: auto; }
+        .image-gallery .thumbnail { width: 40px; height: 40px; object-fit: cover; border-radius: 0.25rem; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; }
+        .image-gallery .thumbnail:hover, .image-gallery .thumbnail.active { border-color: var(--primary-color); }
+        .image-count-badge { position: absolute; top: 0.5rem; right: 0.5rem; background: rgba(0,0,0,0.7); color: white; padding: 0.25rem 0.5rem; border-radius: 1rem; font-size: 0.75rem; }
+        
+        .status-pill { padding: 0.25rem 0.75rem; border-radius: 99px; font-size: 0.75rem; font-weight: 600; color: #fff; text-transform: uppercase; }
+        .status-pill.resolved { background-color: var(--secondary-color); }
+        .status-pill.in-progress { background-color: var(--warning-color); }
+        .status-pill.reported { background-color: var(--danger-color); }
+        .status-pill.spam { background-color: #6b7280; }
+        
+        .upvote-btn, .support-btn, .report-btn { background: #eef2ff; border: none; padding: 0.5rem 1rem; border-radius: 99px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; transition: all 0.3s; color: var(--primary-color); font-weight: 700; font-size: 0.875rem; }
+        .support-btn { background: rgba(16, 185, 129, 0.1); color: var(--secondary-color); }
+        .report-btn { background: rgba(239, 68, 68, 0.1); color: var(--danger-color); }
+        
+        body.dark-mode .upvote-btn { background: rgba(79, 70, 229, 0.3); color: #c7d2fe; }
+        body.dark-mode .support-btn { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
+        body.dark-mode .report-btn { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+        
+        .upvote-btn.voted, .support-btn.supported { background: var(--primary-color); color: #fff; }
+        .support-btn.supported { background: var(--secondary-color); }
+        .upvote-btn:hover:not(.voted) { background: #c7d2fe; }
+        .support-btn:hover:not(.supported) { background: rgba(16, 185, 129, 0.3); }
+        .report-btn:hover { background: rgba(239, 68, 68, 0.2); }
+
+        /* Photo Upload Styles */
+        .photo-upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.3s;
+            margin: 1rem 0;
+        }
+        .photo-upload-area.drag-over {
+            border-color: var(--primary-color);
+            background: rgba(79, 70, 229, 0.05);
+        }
+        .photo-upload-area input[type="file"] {
+            display: none;
+        }
+        .upload-preview {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .upload-preview .preview-item {
+            position: relative;
+            width: 100px;
+            height: 100px;
+        }
+        .upload-preview .preview-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 0.5rem;
+            border: 2px solid var(--border-color);
+        }
+        .upload-preview .remove-btn {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: var(--danger-color);
+            color: white;
+            border: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; z-index: 1000; transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); }
+        .modal-overlay.visible { opacity: 1; visibility: visible; }
+        .modal-content { background: var(--card-background); padding: 2.5rem; border-radius: var(--border-radius); width: 90%; max-width: 600px; transform: translateY(30px) scale(0.95); transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); box-shadow: var(--shadow-lg); position: relative; max-height: 90vh; overflow-y: auto; }
+        .modal-overlay.visible .modal-content { transform: translateY(0) scale(1); }
+        .modal-close-btn { position: absolute; top: 1rem; right: 1rem; width: 40px; height: 40px; border-radius: 50%; background: var(--background-color); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.3s; z-index: 10; }
+        .modal-close-btn:hover { background: var(--border-color); transform: rotate(90deg); }
+
+        /* Enhanced Duplicate Detection Modal Styles */
+        .duplicate-warning {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid var(--warning-color);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .duplicate-warning .warning-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            color: var(--warning-color);
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+        
+        .existing-issue-preview {
+            background: var(--card-background);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+            border: 1px solid var(--border-color);
+        }
+        
+        .existing-issue-preview h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-color);
+        }
+        
+        .existing-issue-preview .location {
+            color: var(--text-light);
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .similarity-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 0.5rem;
+            margin-top: 1rem;
+            font-size: 0.875rem;
+        }
+        
+        .similarity-metrics .metric {
+            background: var(--background-color);
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            text-align: center;
+            font-weight: 600;
+        }
+        
+        .duplicate-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        
+        .duplicate-actions .btn {
+            flex: 1;
+            justify-content: center;
+        }
+
+        /* Report Issue Modal Styles */
+        .report-issue-modal {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--danger-color);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        #map { height: calc(100vh - 12rem); width: 100%; border-radius: var(--border-radius); z-index: 1; }
+        .leaflet-container { background: var(--background-color); }
+
+        .toast-notification { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%) translateY(200%); background: var(--text-color); color: white; padding: 1rem 1.5rem; border-radius: 0.5rem; box-shadow: var(--shadow-lg); z-index: 2000; display: flex; align-items: center; gap: 10px; transition: transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1); }
+        .toast-notification.show { transform: translateX(-50%) translateY(0); }
+        .toast-notification.success { background: var(--secondary-color); }
+        .toast-notification.error { background: var(--danger-color); }
+        
+        .dropdown-menu { position: absolute; top: calc(100% + 10px); right: 0; background: var(--card-background); border-radius: 0.75rem; padding: 0.5rem; box-shadow: var(--shadow-lg); z-index: 100; min-width: 250px; transform: translateY(10px); opacity: 0; visibility: hidden; transition: all 0.3s; }
+        .dropdown-menu.show { transform: translateY(0); opacity: 1; visibility: visible; }
+        .dropdown-item { padding: 0.75rem 1rem; cursor: pointer; border-radius: 0.5rem; display: flex; align-items: center; gap: 10px; }
+        .dropdown-item:hover { background: var(--background-color); }
+        .dropdown-item.unread { font-weight: bold; }
+
+        .accessibility-panel { 
+            position: fixed; 
+            top: 50%; 
+            right: 10px; 
+            transform: translateY(-50%); 
+            background: var(--card-background); 
+            border-radius: 1rem; 
+            padding: 1rem; 
+            box-shadow: var(--shadow-lg); 
+            z-index: 200; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 10px; 
+            border: 1px solid var(--border-color);
+        }
+        .accessibility-btn { 
+            width: 45px; 
+            height: 45px; 
+            border-radius: 50%; 
+            background: var(--card-background);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 1.1rem;
+        }
+        .accessibility-btn:hover {
+            background: var(--primary-color);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .charts-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+        @media (min-width: 1024px) { .charts-grid { grid-template-columns: 1fr 1fr; } }
+        .chart-container { position: relative; height: 400px; width: 100%; }
+
+        .form-group { margin-bottom: 1.5rem; }
+        .form-group label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.75rem; border-radius: 0.5rem; border: 1px solid var(--border-color); background: var(--background-color); color: var(--text-color); font-size: 1rem; }
+        .profile-details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+        .dashboard-section { margin-bottom: 2.5rem; }
+        .dashboard-section h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 1.5rem; }
+
+        .login-options { display: flex; gap: 1rem; justify-content: center; }
+        
+        .theme-selector { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem; }
+        .theme-option { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; border: 3px solid var(--card-background); box-shadow: 0 0 0 1px var(--border-color); transition: all 0.3s; }
+        .theme-option:hover, .theme-option.active { transform: scale(1.1); box-shadow: 0 0 0 3px var(--primary-color); }
+
+        .font-selector { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+        .font-option { padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; border: 1px solid var(--border-color); background: var(--background-color); transition: all 0.3s; }
+        .font-option.active, .font-option:hover { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+
+        .toggle-switch { 
+            width: 50px; height: 28px; background-color: var(--border-color); 
+            border-radius: 14px; position: relative; cursor: pointer; transition: all 0.3s;
+        }
+        .toggle-switch::before { 
+            content: ''; position: absolute; width: 22px; height: 22px; 
+            border-radius: 50%; background-color: white; top: 3px; left: 3px; 
+            transition: all 0.3s; 
+        }
+        .toggle-switch.active { background-color: var(--secondary-color); }
+        .toggle-switch.active::before { transform: translateX(22px); }
+        
+        .mobile-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 99; opacity: 0;
+            visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .mobile-overlay.active { opacity: 1; visibility: visible; }
+
+        @media (max-width: 768px) {
+            body { flex-direction: column; height: auto; overflow: auto; }
+            .sidebar {
+                position: fixed; left: 0; height: 100%; box-shadow: var(--shadow-lg);
+                transform: translateX(-100%);
+            }
+            .sidebar.active { transform: translateX(0); }
+            .main-content {
+                padding: 1rem; margin-top: 50px; overflow-y: visible;
+                height: auto; flex-grow: 1;
+            }
+            header { margin-top: 1rem; }
+            .menu-toggle {
+                display: flex; position: fixed; top: 1rem; left: 1rem; z-index: 101;
+                background: var(--primary-color); color: white; width: 40px; height: 40px;
+                border-radius: 50%; align-items: center; justify-content: center; cursor: pointer;
+            }
+            .stats-grid {
+                display: flex; overflow-x: auto; white-space: nowrap; padding-bottom: 1rem;
+                -webkit-overflow-scrolling: touch; scrollbar-width: none;
+            }
+            .stats-grid::-webkit-scrollbar { display: none; }
+            .stats-grid .stat-card { flex: 0 0 180px; padding: 1rem; }
+            .stats-grid .stat-value { font-size: 1.5rem; }
+            .issues-grid { grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+            .issue-card h3 { font-size: 1rem; }
+            .issue-card .location { font-size: 0.75rem; }
+            .issue-card .card-image { height: 120px; }
+            .duplicate-actions { flex-direction: column; gap: 0.75rem; }
+            .card-actions { flex-direction: column; gap: 0.5rem; }
+            
+            /* Accessibility panel for mobile */
+            .accessibility-panel {
+                position: fixed;
+                top: 1rem;
+                right: 1rem;
+                flex-direction: row;
+                padding: 0.5rem;
+                transform: none;
+                z-index: 300;
+            }
+            .accessibility-btn {
+                width: 40px;
+                height: 40px;
+                font-size: 1rem;
+            }
+        }
+        /* Voice Recording Styles */
+        .voice-section {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 1.5rem;
+            border-radius: var(--border-radius);
+            margin: 1rem 0;
+            text-align: center;
+        }
+
+        .voice-controls {
+            display: flex;
+            justify-content: center;
+            gap: 0.75rem;
+            margin: 1rem 0;
+            flex-wrap: wrap;
+        }
+
+        .voice-btn {
+            background: rgba(255,255,255,0.2);
+            border: 2px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 0.75rem 1rem;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            min-width: 100px;
+            justify-content: center;
+        }
+
+        .voice-btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+
+        .voice-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .voice-btn.recording {
+            background: #ff4757;
+            animation: pulse 1.5s infinite;
+        }
+
+        .voice-btn.processing {
+            background: #ffa502;
+            cursor: not-allowed;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .voice-status {
+            margin: 1rem 0;
+            font-size: 0.875rem;
+            min-height: 20px;
+            font-style: italic;
+        }
+
+        .voice-transcript {
+            background: rgba(255,255,255,0.1);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+            min-height: 60px;
+            text-align: left;
+            font-style: italic;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .language-selector {
+            margin: 1rem 0;
+        }
+
+        .language-selector select {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+        }
+
+        .language-selector select option {
+            background: #333;
+            color: white;
+        }
+
+        /* Photo Upload Styles */
+        .photo-upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.3s;
+            margin: 1rem 0;
+        }
+
+        /* Voice Recording Button Styles */
+.voice-record-btn {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border: none;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-size: 18px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.voice-record-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    background: linear-gradient(135deg, #5a67d8, #6b46c1);
+}
+
+.voice-record-btn:active {
+    transform: translateY(0);
+}
+
+
+    </style>
+</head>
+<body>
+    <div class="app-container logged-out">
+        <div class="mobile-overlay"></div>
+        <div class="menu-toggle"><i class="fas fa-bars"></i></div>
+
+        <aside class="sidebar">
+            <div>
+                <div class="logo"><i class="fas fa-bullhorn"></i><span data-translate-key="appName">CivicPulse</span></div>
+                <nav>
+                    <a class="active" data-view="dashboardView"><i class="fas fa-home"></i><span class="nav-text" data-translate-key="dashboard">Dashboard</span></a>
+                    <a data-view="myReportsView"><i class="fas fa-file-alt"></i><span class="nav-text" data-translate-key="myReports">My Reports</span></a>
+                    <a data-view="mapView"><i class="fas fa-map-marked-alt"></i><span class="nav-text" data-translate-key="issueMap">Issue Map</span></a>
+                    <a data-view="leaderboardView"><i class="fas fa-trophy"></i><span class="nav-text" data-translate-key="champions">Champions</span></a>
+                    <a data-view="analyticsView"><i class="fas fa-chart-line"></i><span class="nav-text" data-translate-key="analytics">Analytics</span></a>
+                    <a data-view="settingsView"><i class="fas fa-cog"></i><span class="nav-text" data-translate-key="settings">Settings</span></a>
+                </nav>
+            </div>
+            <div class="profile" id="profileBtn">
+                <img src="https://i.pravatar.cc/150?u=user" alt="User Avatar">
+                <div class="profile-info">
+                    <div class="name">User</div>
+                    <div class="score" data-translate-key="civicScore">Civic Score: 0</div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div id="dashboardView" class="view active">
+                <header>
+                    <h1 data-translate-key="dashboard">Dashboard</h1>
+                    <!-- <div class="header-actions">
+                        <div style="position: relative;">
+                            <button class="action-btn" id="notificationsBtn" title="Notifications">
+                                <i class="fas fa-bell"></i>
+                                <span class="badge" style="display: none;"></span>
+                            </button>
+                            <div class="dropdown-menu" id="notificationsDropdown"></div>
+                        </div>
+                        <button class="report-button" id="reportIssueBtn"><i class="fas fa-plus"></i> <span data-translate-key="reportNewIssue">Report New Issue</span></button>
+                    </div> -->
+                    <div class="header-actions">
+    <div style="position: relative;">
+        <button class="action-btn" id="notificationsBtn" title="Notifications">
+            <i class="fas fa-bell"></i>
+            <span class="badge" style="display: none;"></span>
+        </button>
+        <div class="dropdown-menu" id="notificationsDropdown"></div>
+    </div>
+    <button class="voice-record-btn" id="voiceRecordBtn" title="Voice Report">
+        <i class="fas fa-microphone"></i>
+    </button>
+    <button class="report-button" id="reportIssueBtn"><i class="fas fa-plus"></i> <span data-translate-key="reportNewIssue">Report New Issue</span></button>
+</div>
+                </header>
+                <div class="stats-grid" id="dashboardStats"></div>
+                <div class="dashboard-section">
+                    <h2 data-translate-key="priorityIssues">Priority Issues</h2>
+                    <div class="issues-grid" id="priorityIssuesGrid"></div>
+                </div>
+                <div class="dashboard-section">
+                    <h2 data-translate-key="recentIssues">Recent Issues</h2>
+                    <div class="issues-grid" id="recentIssuesGrid"></div>
+                </div>
+            </div>
+            
+            <div id="myReportsView" class="view">
+                <header><h1 data-translate-key="myReports">My Reports</h1></header>
+                <div class="issues-grid"></div>
+            </div>
+
+            <div id="mapView" class="view">
+                <header><h1 data-translate-key="issueMap">Issue Map</h1></header>
+                <div id="map"></div>
+            </div>
+            
+            <div id="leaderboardView" class="view">
+                <header><h1 data-translate-key="champions">Community Champions</h1></header>
+                <div class="leaderboard-list"></div>
+            </div>
+
+            <div id="analyticsView" class="view">
+                <header><h1 data-translate-key="analytics">Platform Analytics</h1></header>
+                <div class="charts-grid">
+                    <div class="stat-card">
+                        <h3 style="margin-bottom: 1rem;">Issues by Category</h3>
+                        <div class="chart-container">
+                            <canvas id="issuesByCategoryChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <h3 style="margin-bottom: 1rem;">Issues Reported Over Time</h3>
+                        <div class="chart-container">
+                           <canvas id="issuesOverTimeChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="settingsView" class="view">
+                <header><h1 data-translate-key="settings">Settings</h1></header>
+                <div class="stat-card" style="max-width: 1000px; margin-bottom: 1.5rem;">
+                    <h3 data-translate-key="themeSettings">Appearance Settings</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; margin-top: 1.5rem;">
+                        <div class="form-group">
+                            <label data-translate-key="themeColor">Theme Color</label>
+                            <div class="theme-selector" id="themeSelector"></div>
+                        </div>
+                        <div class="form-group">
+                            <label data-translate-key="fontSize">Font Size</label>
+                            <input type="range" min="14" max="20" value="16" id="fontSizeSlider" style="width: 100%;">
+                        </div>
+                        <div class="form-group">
+                            <label data-translate-key="fontStyle">Font Style</label>
+                            <div class="font-selector" id="fontSelector">
+                                <button class="font-option active" data-font="Inter">Inter</button>
+                                <button class="font-option" data-font="Roboto">Roboto</button>
+                                <button class="font-option" data-font="Open Sans">Open Sans</button>
+                                <button class="font-option" data-font="Lato">Lato</button>
+                                <button class="font-option" data-font="Poppins">Poppins</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-card" style="max-width: 1000px;">
+                    <h3 data-translate-key="notificationSettings">Notification Settings</h3>
+                    <div style="display: flex; flex-direction: column; gap: 1.5rem; margin-top: 1.5rem;">
+                        <div style="display:flex; justify-content: space-between; align-items:center;">
+                            <label data-translate-key="settingNewIssue">New issue in my area</label>
+                            <div class="toggle-switch active" data-setting="newIssue"></div>
+                        </div>
+                        <div style="display:flex; justify-content: space-between; align-items:center;">
+                            <label data-translate-key="settingStatusUpdate">Status update on my reports</label>
+                            <div class="toggle-switch active" data-setting="statusUpdate"></div>
+                        </div>
+                        <div style="display:flex; justify-content: space-between; align-items:center;">
+                            <label data-translate-key="settingDataSaver">Data Saver Mode</label>
+                            <div class="toggle-switch" data-setting="dataSaver"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Accessibility Panel - Fixed positioning outside main container -->
+    <div class="accessibility-panel">
+        <div style="position:relative;">
+            <button class="action-btn accessibility-btn" id="languageBtn" title="Change Language">
+                <i class="fas fa-globe"></i>
+            </button>
+            <div class="dropdown-menu" id="languageDropdown" style="right: 60px; bottom: 0; top: auto; min-width: 150px;"></div>
+        </div>
+        <button class="action-btn accessibility-btn" id="darkModeBtn" title="Toggle Dark Mode">
+            <i class="fas fa-moon"></i>
+        </button>
+    </div>
+
+    <div id="modalContainer"></div>
+    <div id="toastContainer"></div>
+    
+<script>
+(function() {
+    'use strict';
+    
+// --- API CONFIGURATION ---
+    const API_BASE_URL = 'http://localhost:5000/api';
+    const getAuthToken = () => localStorage.getItem('civicpulse_token');
+    const setAuthToken = (token) => localStorage.setItem('civicpulse_token', token);
+    const clearAuthToken = () => localStorage.removeItem('civicpulse_token');
+
+    // const apiCall = async (endpoint, options = {}) => {
+    //     const token = getAuthToken();
+    //     const headers = {
+    //         'Content-Type': 'application/json',
+    //         ...(token && { 'Authorization': `Bearer ${token}` }),
+    //         ...options.headers
+    //     };
+    
+const apiCall = async (endpoint, options = {}) => {
+    const token = getAuthToken();
+    
+    // Don't set Content-Type for FormData - browser will set it automatically
+    const headers = {
+        ...(token && { 'Authorization': `Bearer ${token}` }),
+        ...options.headers
+    };
+    
+    // Only set Content-Type to application/json if body is not FormData
+    if (options.body && !(options.body instanceof FormData)) {
+        headers['Content-Type'] = 'application/json';
+    }
+
+        try {
+            const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                ...options,
+                headers
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'API request failed');
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('API Error:', error);
+            throw error;
+        }
+    };
+
+    // Enhanced API with photo upload support
+    const API = {
+        users: {
+            register: (userData) => apiCall('/users/register', { method: 'POST', body: JSON.stringify(userData) }),
+            login: (credentials) => apiCall('/users/login', { method: 'POST', body: JSON.stringify(credentials) }),
+            getProfile: () => apiCall('/users/me'),
+            updateProfile: (updates) => apiCall('/users/me', { method: 'PUT', body: JSON.stringify(updates) }),
+            getAllUsers: () => apiCall('/users'),
+            markNotificationsRead: () => apiCall('/users/notifications/read', { method: 'PUT' })
+        },
+        upload: {
+            photo: async (file) => {
+                const formData = new FormData();
+                formData.append('photo', file);
+                return apiCall('/upload/photo', { 
+                    method: 'POST', 
+                    body: formData,
+                    // headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+                });
+            },
+            photos: async (files) => {
+                const formData = new FormData();
+                files.forEach(file => formData.append('photos', file));
+                return apiCall('/upload/photos', { 
+                    method: 'POST', 
+                    body: formData,
+                    // headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+                });
+            }
+        },
+        issues: {
+            create: (issueData) => apiCall('/issues', { method: 'POST', body: JSON.stringify(issueData) }),
+            checkDuplicate: (issueData) => apiCall('/issues/check-duplicate', { method: 'POST', body: JSON.stringify(issueData) }),
+            support: (id) => apiCall(`/issues/${id}/support`, { method: 'POST' }),
+            report: (id, reportData) => apiCall(`/issues/${id}/report`, { method: 'POST', body: JSON.stringify(reportData) }),
+            getAll: (filters = {}) => {
+                const queryString = new URLSearchParams(filters).toString();
+                return apiCall(`/issues${queryString ? `?${queryString}` : ''}`);
+            },
+            getById: (id) => apiCall(`/issues/${id}`),
+            updateStatus: (id, status) => apiCall(`/issues/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
+            vote: (id, voteType = 'upvote') => apiCall(`/issues/${id}/vote`, { method: 'POST', body: JSON.stringify({ voteType }) }),
+            addComment: (id, text) => apiCall(`/issues/${id}/comments`, { method: 'POST', body: JSON.stringify({ text }) })
+        },
+        analytics: {
+            getData: () => apiCall('/analytics')
+        }
+    };
+
+    const appState = {
+        currentUser: null,
+        users: [],
+        issues: [],
+        issueCategories: ["Roads", "Electricity", "Water Supply", "Sanitation", "Public Safety", "Other"],
+        currentLanguage: 'en',
+        map: null,
+        charts: {},
+        uploadedPhotos: []
+    };
+
+    const DOMElements = {
+        appContainer: document.querySelector('.app-container'),
+        sidebar: document.querySelector('.sidebar'),
+        navLinks: document.querySelectorAll('nav a'),
+        views: document.querySelectorAll('.view'),
+        modalContainer: document.getElementById('modalContainer'),
+        toastContainer: document.getElementById('toastContainer'),
+        profileBtn: document.getElementById('profileBtn'),
+        reportIssueBtn: document.getElementById('reportIssueBtn'),
+        notificationsBtn: document.getElementById('notificationsBtn'),
+        notificationsBadge: document.querySelector('#notificationsBtn .badge'),
+        notificationsDropdown: document.getElementById('notificationsDropdown'),
+        menuToggle: document.querySelector('.menu-toggle'),
+        mobileOverlay: document.querySelector('.mobile-overlay'),
+        darkModeBtn: document.getElementById('darkModeBtn'),
+        languageBtn: document.getElementById('languageBtn'),
+        languageDropdown: document.getElementById('languageDropdown')
+    };
+
+    // Translations (same as before)
+    const translations = {
+        en: { 
+            appName: "CivicPulse", dashboard: "Dashboard", myReports: "My Reports", 
+            issueMap: "Issue Map", champions: "Champions", analytics: "Analytics", 
+            settings: "Settings", civicScore: "Civic Score", reportNewIssue: "Report New Issue",
+            priorityIssues: "Priority Issues", recentIssues: "Recent Issues",
+            themeSettings: "Appearance Settings", themeColor: "Theme Color", fontSize: "Font Size",
+            fontStyle: "Font Style", notificationSettings: "Notification Settings",
+            settingNewIssue: "New issue in my area", settingStatusUpdate: "Status update on my reports",
+            settingDataSaver: "Data Saver Mode"
+        },
+        hi: { 
+            appName: "सिविकपल्स", dashboard: "डैशबोर्ड", myReports: "मेरी रिपोर्ट", 
+            issueMap: "समस्या मानचित्र", champions: "चैंपियन", analytics: "विश्लेषिकी", 
+            settings: "समायोजन", civicScore: "सिविक स्कोर", reportNewIssue: "नई समस्या की रिपोर्ट करें",
+            priorityIssues: "प्राथमिकता वाले मुद्दे", recentIssues: "हाल के मुद्दे"
+        },
+        ta: { 
+            appName: "சிவிக்பல்ஸ்", dashboard: "டாஷ்போர்ட்", myReports: "எனது அறிக்கைகள்", 
+            issueMap: "பிரச்சனை வரைபடம்", champions: "சாம்பியன்கள்", analytics: "பகுப்பாய்வு", 
+            settings: "அமைப்புகள்", civicScore: "சிவிக் ஸ்கோர்", reportNewIssue: "புதிய சிக்கலை புகாரளி"
+        }
+    };
+
+    const translateUI = () => {
+        const lang = appState.currentLanguage;
+        document.querySelectorAll('[data-translate-key]').forEach(el => {
+            const key = el.dataset.translateKey;
+            if (translations[lang] && translations[lang][key]) {
+                el.textContent = translations[lang][key];
+            }
+        });
+        document.documentElement.lang = lang;
+    };
+
+    const showToast = (message, type = 'info') => {
+        const toast = document.createElement('div');
+        toast.className = `toast-notification ${type}`;
+        toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-times-circle' : 'fa-info-circle'}"></i> ${message}`;
+        DOMElements.toastContainer.appendChild(toast);
+        setTimeout(() => toast.classList.add('show'), 10);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 500);
+        }, 4000);
+    };
+
+    const openModal = (modalHTML) => {
+        DOMElements.modalContainer.innerHTML = modalHTML;
+        const overlay = DOMElements.modalContainer.querySelector('.modal-overlay');
+        setTimeout(() => overlay?.classList.add('visible'), 10);
+    };
+
+    const closeModal = () => {
+        const overlay = DOMElements.modalContainer.querySelector('.modal-overlay');
+        if (overlay) {
+            overlay.classList.remove('visible');
+            setTimeout(() => DOMElements.modalContainer.innerHTML = '', 400);
+        }
+    };
+
+    // Enhanced duplicate detection modal
+    const openDuplicateModal = (duplicateInfo, issueData) => {
+        const { existingIssue, distance, similarities } = duplicateInfo;
+        
+        DOMElements.modalContainer.innerHTML = '';
+        
+        const modalHTML = `
+            <div class="modal-overlay visible duplicate-modal">
+                <div class="modal-content" style="max-width: 700px;">
+                    <button class="modal-close-btn duplicate-close">&times;</button>
+                    <h2><i class="fas fa-exclamation-triangle" style="color: var(--warning-color);"></i> Similar Issue Found Nearby</h2>
+                    
+                    <div class="duplicate-warning">
+                        <div class="warning-header">
+                            <i class="fas fa-search-location"></i>
+                            <span>We found a similar issue in your area</span>
+                        </div>
+                        <p>To reduce duplicate reports and strengthen community voice, consider supporting the existing issue instead.</p>
+                        
+                        <div class="existing-issue-preview">
+                            <h4>${existingIssue.title}</h4>
+                            <p class="location"><i class="fas fa-map-marker-alt"></i> ${existingIssue.location}</p>
+                            <p style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 0.5rem;">${existingIssue.description}</p>
+                            
+                            <div class="similarity-metrics">
+                                <div class="metric">
+                                    <div style="font-size: 1.2em; color: var(--primary-color);">${distance}m</div>
+                                    <div>Distance</div>
+                                </div>
+                                <div class="metric">
+                                    <div style="font-size: 1.2em; color: var(--primary-color);">${similarities.title}%</div>
+                                    <div>Title Match</div>
+                                </div>
+                                <div class="metric">
+                                    <div style="font-size: 1.2em; color: var(--primary-color);">${similarities.keywords}%</div>
+                                    <div>Keyword Match</div>
+                                </div>
+                                <div class="metric">
+                                    <div style="font-size: 1.2em; color: var(--primary-color);">${existingIssue.upvotes}</div>
+                                    <div>Supporters</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="duplicate-actions">
+                        <button class="btn secondary duplicate-support" data-issue-id="${existingIssue.id}">
+                            <i class="fas fa-handshake"></i> Support Existing Issue
+                        </button>
+                        <button class="btn duplicate-create">
+                            <i class="fas fa-plus"></i> Create New Report Anyway
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        DOMElements.modalContainer.innerHTML = modalHTML;
+        window.pendingIssueData = issueData;
+
+        // Event handlers for duplicate modal
+        const duplicateModal = DOMElements.modalContainer.querySelector('.duplicate-modal');
+        const supportBtn = duplicateModal.querySelector('.duplicate-support');
+        const createBtn = duplicateModal.querySelector('.duplicate-create');
+        const closeBtn = duplicateModal.querySelector('.duplicate-close');
+
+        supportBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            
+            supportBtn.disabled = true;
+            supportBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Supporting...';
+            
+            try {
+                await API.issues.support(existingIssue.id);
+                DOMElements.modalContainer.innerHTML = '';
+                showToast('Successfully supported existing issue!', 'success');
+                await refreshDashboard();
+                await loadUserProfile();
+            } catch (error) {
+                supportBtn.disabled = false;
+                supportBtn.innerHTML = '<i class="fas fa-handshake"></i> Support Existing Issue';
+                showToast(error.message, 'error');
+            }
+        });
+
+        createBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            
+            createBtn.disabled = true;
+            createBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+            
+            try {
+                window.pendingIssueData.ignoreDuplicate = true;
+                await API.issues.create(window.pendingIssueData);
+                DOMElements.modalContainer.innerHTML = '';
+                showToast('Report submitted successfully!', 'success');
+                await refreshDashboard();
+                await loadUserProfile();
+            } catch (error) {
+                createBtn.disabled = false;
+                createBtn.innerHTML = '<i class="fas fa-plus"></i> Create New Report Anyway';
+                showToast(error.message, 'error');
+            }
+        });
+        
+        closeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            DOMElements.modalContainer.innerHTML = '';
+        });
+        
+        duplicateModal.querySelector('.modal-content').addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+        
+        duplicateModal.addEventListener('click', (e) => {
+            if (e.target === duplicateModal) {
+                // Optional: close on overlay click
+            }
+        });
+        
+        setTimeout(() => {
+            duplicateModal.classList.add('visible');
+        }, 10);
+    };
+
+    // Photo upload functionality
+    const handlePhotoUpload = (files) => {
+        const promises = Array.from(files).map(file => {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve({ file, dataUrl: e.target.result });
+                reader.readAsDataURL(file);
+            });
+        });
+        
+        return Promise.all(promises);
+    };
+
+    const createImageGallery = (images, issueId) => {
+        if (!images || images.length === 0) {
+            return `<img src="https://placehold.co/600x400/cccccc/000000?text=New+Report" alt="No Image" class="card-image">`;
+        }
+        
+        if (images.length === 1) {
+            return `<img src="${images[0]}" alt="Issue Image" class="card-image">`;
+        }
+        
+        const mainImage = images[0];
+        const thumbnails = images.slice(1, 4).map((img, index) => 
+            `<img src="${img}" alt="Thumbnail ${index + 1}" class="thumbnail" data-index="${index + 1}" onclick="switchImage('${issueId}', ${index + 1})">`
+        ).join('');
+        
+        const extraCount = images.length > 4 ? `+${images.length - 4}` : '';
+        
+        return `
+            <div class="image-gallery" data-issue-id="${issueId}">
+                ${images.length > 1 ? `<div class="image-count-badge">${images.length} photos</div>` : ''}
+                <img src="${mainImage}" alt="Main Issue Image" class="main-image" id="main-image-${issueId}">
+                ${images.length > 1 ? `
+                    <div class="thumbnail-row">
+                        <img src="${mainImage}" alt="Thumbnail 0" class="thumbnail active" data-index="0" onclick="switchImage('${issueId}', 0)">
+                        ${thumbnails}
+                        ${extraCount ? `<div class="thumbnail" style="display:flex;align-items:center;justify-content:center;background:var(--border-color);color:var(--text-color);font-weight:bold;">${extraCount}</div>` : ''}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    };
+
+    // Global function for switching images
+    window.switchImage = (issueId, index) => {
+        const gallery = document.querySelector(`[data-issue-id="${issueId}"]`);
+        if (!gallery) return;
+        
+        const issue = appState.issues.find(i => (i._id || i.id) == issueId);
+        if (!issue || !issue.images) return;
+        
+        const mainImage = gallery.querySelector('.main-image');
+        const thumbnails = gallery.querySelectorAll('.thumbnail');
+        
+        mainImage.src = issue.images[index];
+        thumbnails.forEach((thumb, i) => {
+            thumb.classList.toggle('active', i === index);
+        });
+    };
+
+    const loadUsers = async () => {
+        try {
+            appState.users = await API.users.getAllUsers();
+        } catch (error) {
+            console.error('Error loading users:', error);
+        }
+    };
+
+    const loadIssues = async (filters = {}) => {
+        try {
+            appState.issues = await API.issues.getAll(filters);
+            return appState.issues;
+        } catch (error) {
+            console.error('Error loading issues:', error);
+            return [];
+        }
+    };
+
+    const loadUserProfile = async () => {
+        try {
+            appState.currentUser = await API.users.getProfile();
+            updateUIWithUser();
+        } catch (error) {
+            console.error('Error loading profile:', error);
+            logout();
+        }
+    };
+
+    const updateUIWithUser = () => {
+        if (!appState.currentUser) return;
+        document.querySelector('.profile .name').textContent = appState.currentUser.name;
+        document.querySelector('.profile .score').textContent = `Civic Score: ${appState.currentUser.score}`;
+        document.querySelector('.profile img').src = appState.currentUser.avatar;
+        updateNotifications();
+    };
+
+    const updateNotifications = () => {
+        if (!appState.currentUser) return;
+        const unreadCount = appState.currentUser.notifications.filter(n => !n.read).length;
+        DOMElements.notificationsBadge.textContent = unreadCount;
+        DOMElements.notificationsBadge.style.display = unreadCount > 0 ? 'flex' : 'none';
+        DOMElements.notificationsDropdown.innerHTML = appState.currentUser.notifications
+            .map(n => `<div class="dropdown-item ${n.read ? '' : 'unread'}">${n.text}</div>`)
+            .join('') || '<div class="dropdown-item">No notifications</div>';
+    };
+
+    const renderIssuesGrid = (targetSelector, issuesToRender) => {
+        const grid = document.querySelector(targetSelector);
+        if (!grid) return;
+        if (issuesToRender.length === 0) {
+            grid.innerHTML = '<p style="color: var(--text-light);">No issues found.</p>';
+            return;
+        }
+        grid.innerHTML = issuesToRender.map(issue => {
+            const issueId = issue._id || issue.id;
+            const userVote = appState.currentUser && issue.voted_by ? 
+                issue.voted_by.find(vote => vote.userId === (appState.currentUser.id || appState.currentUser._id)) : null;
+            const isUpvoted = userVote && userVote.type === 'upvote';
+            const isDownvoted = userVote && userVote.type === 'downvote';
+            const supporterCount = issue.supporterCount || 0;
+            const reportCount = issue.reportCount || 0;
+            
+            return `
+            <div class="issue-card" data-issue-id="${issueId}">
+                ${createImageGallery(issue.images || [issue.image].filter(Boolean), issueId)}
+                <div class="card-content">
+                    <h3>${issue.title}</h3>
+                    <p class="location"><i class="fas fa-map-marker-alt"></i> ${issue.location}</p>
+                    ${supporterCount > 0 ? `<p style="color: var(--secondary-color); font-size: 0.85rem; margin-top: 0.5rem;"><i class="fas fa-users"></i> ${supporterCount} additional supporters</p>` : ''}
+                    ${reportCount > 0 ? `<p style="color: var(--danger-color); font-size: 0.85rem; margin-top: 0.25rem;"><i class="fas fa-flag"></i> ${reportCount} spam reports</p>` : ''}
+                </div>
+                <div class="card-footer">
+                    <span class="status-pill ${issue.status.toLowerCase().replace(' ', '-')}">${issue.status}</span>
+                    <div class="card-actions">
+                        <button class="upvote-btn ${isUpvoted ? 'voted' : ''}" data-issue-id="${issueId}" data-vote-type="upvote" onclick="event.stopPropagation();">
+                            <i class="fas fa-arrow-up"></i> <span class="count">${issue.upvotes}</span>
+                        </button>
+                        ${issue.downvotes > 0 ? `
+                            <button class="upvote-btn ${isDownvoted ? 'voted' : ''}" data-issue-id="${issueId}" data-vote-type="downvote" onclick="event.stopPropagation();" style="background: rgba(239, 68, 68, 0.1); color: var(--danger-color);">
+                                <i class="fas fa-arrow-down"></i> <span class="count">${issue.downvotes}</span>
+                            </button>
+                        ` : ''}
+                        ${issue.status !== 'Spam' && appState.currentUser && issue.reporter_id !== (appState.currentUser.id || appState.currentUser._id) ? `
+                            <button class="report-btn" data-issue-id="${issueId}" onclick="event.stopPropagation();" title="Report as spam">
+                                <i class="fas fa-flag"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    };
+
+    const openReportSpamModal = (issueId) => {
+        const issue = appState.issues.find(i => (i._id || i.id) == issueId);
+        if (!issue) return;
+
+        const modalHTML = `
+            <div class="modal-overlay">
+                <div class="modal-content" style="max-width: 500px;">
+                    <button class="modal-close-btn">&times;</button>
+                    <h2><i class="fas fa-flag" style="color: var(--danger-color);"></i> Report Issue</h2>
+                    
+                    <div class="report-issue-modal">
+                        <p><strong>Issue:</strong> ${issue.title}</p>
+                        <p><strong>Location:</strong> ${issue.location}</p>
+                    </div>
+                    
+                    <form id="reportSpamForm">
+                        <div class="form-group">
+                            <label for="reportReason">Reason for reporting:</label>
+                            <select id="reportReason" required>
+                                <option value="">Select a reason...</option>
+                                <option value="spam">Spam or irrelevant content</option>
+                                <option value="duplicate">Duplicate report</option>
+                                <option value="false">False or misleading information</option>
+                                <option value="inappropriate">Inappropriate content</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="reportDetails">Additional details (optional):</label>
+                            <textarea id="reportDetails" rows="3" placeholder="Provide more context about why you're reporting this issue..."></textarea>
+                        </div>
+                        <div style="display: flex; gap: 1rem;">
+                            <button type="button" class="btn secondary" onclick="closeModal()">Cancel</button>
+                            <button type="submit" class="btn danger" data-issue-id="${issueId}">Submit Report</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+        
+        openModal(modalHTML);
+    };
+
+    const refreshDashboard = async () => {
+        await loadIssues();
+        const statsContainer = document.getElementById('dashboardStats');
+        const totalReports = appState.issues.filter(i => i.status !== 'Spam' && i.status !== 'Removed').length;
+        const inProgress = appState.issues.filter(i => i.status === 'In Progress').length;
+        const resolvedIssues = appState.issues.filter(i => i.status === 'Resolved').length;
+        const spamIssues = appState.issues.filter(i => i.status === 'Spam').length;
+        
+        statsContainer.innerHTML = `
+            <div class="stat-card clickable" data-filter="all">
+                <div class="stat-header">
+                    <div class="stat-icon reports"><i class="fas fa-bullhorn"></i></div>
+                    <div><div class="stat-title">Total Reports</div><div class="stat-value">${totalReports}</div></div>
+                </div>
+            </div>
+            <div class="stat-card clickable" data-filter="In Progress">
+                <div class="stat-header">
+                    <div class="stat-icon progress"><i class="fas fa-cogs"></i></div>
+                    <div><div class="stat-title">In Progress</div><div class="stat-value">${inProgress}</div></div>
+                </div>
+            </div>
+            <div class="stat-card clickable" data-filter="Resolved">
+                <div class="stat-header">
+                    <div class="stat-icon resolved"><i class="fas fa-check-circle"></i></div>
+                    <div><div class="stat-title">Resolved</div><div class="stat-value">${resolvedIssues}</div></div>
+                </div>
+            </div>
+            ${spamIssues > 0 ? `
+                <div class="stat-card clickable" data-filter="Spam">
+                    <div class="stat-header">
+                        <div class="stat-icon spam"><i class="fas fa-ban"></i></div>
+                        <div><div class="stat-title">Spam Filtered</div><div class="stat-value">${spamIssues}</div></div>
+                    </div>
+                </div>
+            ` : ''}`;
+
+        const priorityIssues = [...appState.issues]
+            .filter(i => i.status !== 'Spam' && i.status !== 'Removed')
+            .sort((a, b) => b.upvotes - a.upvotes)
+            .slice(0, 6);
+        renderIssuesGrid('#priorityIssuesGrid', priorityIssues);
+        
+        const recentIssues = [...appState.issues]
+            .filter(i => i.status !== 'Spam' && i.status !== 'Removed')
+            .sort((a, b) => new Date(b.createdAt || b.created_at) - new Date(a.createdAt || a.created_at))
+            .slice(0, 6);
+        renderIssuesGrid('#recentIssuesGrid', recentIssues);
+    };
+
+    const openIssueListModal = (issues, title) => {
+        openModal(`
+            <div class="modal-overlay">
+                <div class="modal-content" style="max-width: 900px;">
+                    <button class="modal-close-btn">&times;</button>
+                    <h2>${title}</h2>
+                    <div class="issues-grid" style="margin-top: 1.5rem; max-height: 70vh; overflow-y: auto;">
+                        ${issues.length > 0 ? issues.map(issue => {
+                            const supporterCount = issue.supporterCount || 0;
+                            const reportCount = issue.reportCount || 0;
+                            const issueId = issue._id || issue.id;
+                            return `
+                            <div class="issue-card" data-issue-id="${issueId}">
+                                ${createImageGallery(issue.images || [issue.image].filter(Boolean), issueId)}
+                                <div class="card-content">
+                                    <h3>${issue.title}</h3>
+                                    <p class="location"><i class="fas fa-map-marker-alt"></i> ${issue.location}</p>
+                                    ${supporterCount > 0 ? `<p style="color: var(--secondary-color); font-size: 0.85rem; margin-top: 0.5rem;"><i class="fas fa-users"></i> ${supporterCount} supporters</p>` : ''}
+                                    ${reportCount > 0 ? `<p style="color: var(--danger-color); font-size: 0.85rem; margin-top: 0.25rem;"><i class="fas fa-flag"></i> ${reportCount} reports</p>` : ''}
+                                </div>
+                                <div class="card-footer">
+                                    <span class="status-pill ${issue.status.toLowerCase().replace(' ', '-')}">${issue.status}</span>
+                                    <span class="upvote-btn" style="pointer-events: none;"><i class="fas fa-arrow-up"></i> ${issue.upvotes}</span>
+                                </div>
+                            </div>`;
+                        }).join('') : '<p>No issues to display.</p>'}
+                    </div>
+                </div>
+            </div>`);
+    };
+
+    const initAnalyticsCharts = async () => {
+        const categoryCtx = document.getElementById('issuesByCategoryChart')?.getContext('2d');
+        const timeCtx = document.getElementById('issuesOverTimeChart')?.getContext('2d');
+        if (!categoryCtx || !timeCtx) return;
+
+        try {
+            const analytics = await API.analytics.getData();
+            
+            if (appState.charts.category) appState.charts.category.destroy();
+            appState.charts.category = new Chart(categoryCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: analytics.byCategory.map(c => c._id),
+                    datasets: [{
+                        data: analytics.byCategory.map(c => c.count),
+                        backgroundColor: ['#f59e0b', '#f97316', '#ef4444', '#64748b', '#4f46e5', '#10b981'],
+                        borderColor: 'var(--card-background)',
+                        borderWidth: 4
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom' } } }
+            });
+
+            if (appState.charts.time) appState.charts.time.destroy();
+            appState.charts.time = new Chart(timeCtx, {
+                type: 'line',
+                data: {
+                    labels: analytics.timeline.map(t => t._id),
+                    datasets: [{
+                        label: 'Issues Reported',
+                        data: analytics.timeline.map(t => t.count),
+                        borderColor: 'var(--primary-color)',
+                        backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                        tension: 0.2,
+                        fill: true
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: true }
+            });
+        } catch (error) {
+            console.error('Error loading analytics:', error);
+        }
+    };
+
+    const renderMapView = async () => {
+        const mapContainer = document.getElementById('map');
+        if (!mapContainer || mapContainer.offsetParent === null) return;
+        if (appState.map) appState.map.remove();
+        
+        await loadIssues();
+        
+        appState.map = L.map(mapContainer).setView([12.8585, 80.1800], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(appState.map);
+        
+        const validIssues = appState.issues.filter(i => i.status !== 'Spam' && i.status !== 'Removed');
+        const heatPoints = validIssues.map(i => [i.coordinates?.lat || i.lat, i.coordinates?.lng || i.lng, i.coordinates?.intensity || i.intensity || 10]);
+        
+        if (heatPoints.length > 0) {
+            L.heatLayer(heatPoints, { radius: 25, blur: 15, maxZoom: 17 }).addTo(appState.map);
+        }
+
+        validIssues.forEach(issue => {
+            const lat = issue.coordinates?.lat || issue.lat;
+            const lng = issue.coordinates?.lng || issue.lng;
+            if (lat && lng) {
+                const markerColor = issue.status === 'Resolved' ? 'green' : 
+                                  issue.status === 'In Progress' ? 'orange' : 'red';
+                L.marker([lat, lng]).addTo(appState.map)
+                    .bindPopup(`<b>${issue.title}</b><br>${issue.location}<br>Status: ${issue.status}<br>Upvotes: ${issue.upvotes}`)
+                    .on('click', () => openIssueDetailModal(issue._id || issue.id));
+            }
+        });
+    };
+
+    const showView = async (viewId) => {
+        DOMElements.views.forEach(v => v.classList.remove('active'));
+        document.getElementById(viewId)?.classList.add('active');
+        DOMElements.navLinks.forEach(l => l.classList.remove('active'));
+        document.querySelector(`nav a[data-view="${viewId}"]`)?.classList.add('active');
+        
+        if (viewId === 'dashboardView') {
+            await refreshDashboard();
+        } else if (viewId === 'myReportsView') {
+            const myIssues = await loadIssues({ reporterId: appState.currentUser._id || appState.currentUser.id });
+            renderIssuesGrid('#myReportsView .issues-grid', myIssues);
+        } else if (viewId === 'mapView') {
+            setTimeout(renderMapView, 10);
+        } else if (viewId === 'leaderboardView') {
+            await loadUsers();
+            const list = document.querySelector('.leaderboard-list');
+            list.innerHTML = appState.users.map((user, index) => `
+                <div class="stat-card clickable leaderboard-item" data-user-id="${user._id || user.id}" style="display:flex; align-items:center; gap:1rem; padding:1rem; margin-bottom:1rem;">
+                    <span style="font-weight:800; font-size:1.2rem; width:40px; color:var(--text-light);">#${index+1}</span>
+                    <img src="${user.avatar}" style="width:50px; height:50px; border-radius:50%;">
+                    <div style="flex-grow:1;">
+                        <div style="font-weight:600;">${user.name}</div>
+                        <div style="color:var(--text-light); font-size:0.875rem;">${user.email}</div>
+                    </div>
+                    <div style="font-weight:700; color:var(--primary-color);">${user.score.toLocaleString()} pts</div>
+                </div>`).join('');
+        } else if (viewId === 'analyticsView') {
+            await initAnalyticsCharts();
+        } else if (viewId === 'settingsView') {
+            // Initialize theme selector
+            const themeSelector = document.getElementById('themeSelector');
+            const themes = { default: '#4f46e5', rose: '#db2777', forest: '#16a34a', sunset: '#d97706' };
+            themeSelector.innerHTML = '';
+            Object.keys(themes).forEach(themeKey => {
+                const themeOption = document.createElement('div');
+                themeOption.className = `theme-option ${themeKey === 'default' ? 'active' : ''}`;
+                themeOption.style.backgroundColor = themes[themeKey];
+                themeOption.dataset.theme = themeKey;
+                themeSelector.appendChild(themeOption);
+            });
+        }
+    };
+
+    const openReportModal = () => {
+        const categoryOptions = appState.issueCategories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+        openModal(`
+            <div class="modal-overlay"><div class="modal-content" style="max-width: 700px;">
+                <button class="modal-close-btn">&times;</button><h2><i class="fas fa-camera"></i> Report New Issue</h2>
+                <form id="reportForm">
+                    <div class="form-group"><label for="issueTitle">Title</label><input type="text" id="issueTitle" required placeholder="Brief description of the issue"></div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group"><label for="issueCategory">Category</label><select id="issueCategory" required>${categoryOptions}</select></div>
+                        <div class="form-group"><label for="issueLocation">Location</label><input type="text" id="issueLocation" required placeholder="Street address or landmark"></div>
+                    </div>
+                    <div class="form-group"><label for="issueDescription">Description</label><textarea id="issueDescription" rows="3" required placeholder="Provide detailed information about the issue..."></textarea></div>
+                    
+                    <div class="form-group">
+                        <label>Photos (Upload up to 5 photos)</label>
+                        <div class="photo-upload-area" id="photoUploadArea">
+                            <i class="fas fa-camera" style="font-size: 2rem; color: var(--text-light); margin-bottom: 1rem;"></i>
+                            <p>Click to upload photos or drag and drop here</p>
+                            <p style="font-size: 0.875rem; color: var(--text-light);">Supported formats: JPG, PNG, GIF, WebP (Max: 10MB each)</p>
+                            <input type="file" id="photoInput" multiple accept="image/*" style="display: none;">
+                        </div>
+                        <div class="upload-preview" id="uploadPreview"></div>
+                    </div>
+                    
+                    <div class="form-group"><label>Location (Click on map to set exact location)</label><div id="reportMap" style="height:200px; border-radius:0.5rem;"></div></div>
+                    <input type="hidden" id="issueLat" value="12.8585">
+                    <input type="hidden" id="issueLng" value="80.1800">
+                    
+                    <button type="submit" class="report-button" style="width:100%; justify-content:center;">
+                        <i class="fas fa-paper-plane"></i> Submit Report
+                    </button>
+                </form>
+            </div></div>`);
+
+        // Initialize photo upload
+        const photoUploadArea = document.getElementById('photoUploadArea');
+        const photoInput = document.getElementById('photoInput');
+        const uploadPreview = document.getElementById('uploadPreview');
+        
+        appState.uploadedPhotos = [];
+
+        photoUploadArea.addEventListener('click', () => photoInput.click());
+        
+        photoUploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            photoUploadArea.classList.add('drag-over');
+        });
+        
+        photoUploadArea.addEventListener('dragleave', () => {
+            photoUploadArea.classList.remove('drag-over');
+        });
+        
+        photoUploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            photoUploadArea.classList.remove('drag-over');
+            const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+            handlePhotoSelection(files);
+        });
+        
+        photoInput.addEventListener('change', (e) => {
+            handlePhotoSelection(Array.from(e.target.files));
+        });
+
+        const handlePhotoSelection = async (files) => {
+            if (appState.uploadedPhotos.length + files.length > 5) {
+                showToast('Maximum 5 photos allowed', 'error');
+                return;
+            }
+            
+            for (const file of files) {
+                if (file.size > 10 * 1024 * 1024) {
+                    showToast(`File ${file.name} is too large. Maximum size is 10MB.`, 'error');
+                    continue;
+                }
+                
+                try {
+                    const uploadResult = await API.upload.photo(file);
+                    appState.uploadedPhotos.push(uploadResult.photoUrl);
+                    
+                    const previewItem = document.createElement('div');
+                    previewItem.className = 'preview-item';
+                    previewItem.innerHTML = `
+                        <img src="${uploadResult.photoUrl}" alt="Preview" class="preview-image">
+                        <button type="button" class="remove-btn" data-url="${uploadResult.photoUrl}">&times;</button>
+                    `;
+                    uploadPreview.appendChild(previewItem);
+                } catch (error) {
+                    showToast(`Failed to upload ${file.name}: ${error.message}`, 'error');
+                }
+            }
+        };
+        
+        uploadPreview.addEventListener('click', (e) => {
+            if (e.target.classList.contains('remove-btn')) {
+                const url = e.target.dataset.url;
+                appState.uploadedPhotos = appState.uploadedPhotos.filter(photo => photo !== url);
+                e.target.parentElement.remove();
+            }
+        });
+
+        // Initialize map
+        setTimeout(() => {
+            const reportMap = L.map('reportMap').setView([12.8585, 80.1800], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(reportMap);
+            let marker = L.marker([12.8585, 80.1800], { draggable: true }).addTo(reportMap);
+            
+            marker.on('dragend', function(e) {
+                const pos = marker.getLatLng();
+                document.getElementById('issueLat').value = pos.lat;
+                document.getElementById('issueLng').value = pos.lng;
+            });
+
+            reportMap.on('click', function(e) {
+                marker.setLatLng(e.latlng);
+                document.getElementById('issueLat').value = e.latlng.lat;
+                document.getElementById('issueLng').value = e.latlng.lng;
+            });
+        }, 100);
+    };
+
+    const openIssueDetailModal = async (issueId) => {
+        try {
+            const issue = await API.issues.getById(issueId);
+            
+            const renderComments = (comments) => comments.map(c => `
+                <div class="comment" style="display:flex; gap:10px; margin-bottom:1rem;">
+                    <img src="${c.userId.avatar}" alt="${c.userId.name}" style="width:40px; height:40px; border-radius:50%;">
+                    <div class="comment-body">
+                        <strong>${c.userId.name}:</strong>
+                        <p>${c.text}</p>
+                    </div>
+                </div>`).join('') || '<p id="no-comments-msg">No comments yet.</p>';
+
+            const renderSupporters = (supporters) => supporters.length > 0 ? `
+                <div style="margin-top: 1rem;">
+                    <h5 style="margin-bottom: 0.5rem;">Additional Supporters (${supporters.length})</h5>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        ${supporters.map(s => `<img src="${s.avatar}" alt="${s.name}" title="${s.name}" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--secondary-color);">`).join('')}
+                    </div>
+                </div>
+            ` : '';
+
+            const renderReports = (reports) => reports.length > 0 ? `
+                <div style="margin-top: 1rem; padding: 1rem; background: rgba(239, 68, 68, 0.05); border-radius: 0.5rem;">
+                    <h5 style="color: var(--danger-color); margin-bottom: 0.5rem;"><i class="fas fa-flag"></i> Spam Reports (${reports.length})</h5>
+                    ${reports.slice(0, 3).map(r => `
+                        <div style="margin-bottom: 0.5rem; font-size: 0.875rem;">
+                            <strong>${r.reason}</strong>
+                            ${r.details ? `<br><em>${r.details}</em>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            ` : '';
+            
+            const images = issue.images && issue.images.length > 0 ? issue.images : [issue.image].filter(Boolean);
+            const imageGallery = images.length > 0 ? `
+                <div style="margin-bottom: 1rem;">
+                    <img src="${images[0]}" style="width:100%; border-radius:0.5rem; margin-bottom: 0.5rem;" id="modalMainImage">
+                    ${images.length > 1 ? `
+                        <div style="display: flex; gap: 0.5rem; overflow-x: auto;">
+                            ${images.map((img, idx) => `
+                                <img src="${img}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 0.25rem; cursor: pointer; border: 2px solid ${idx === 0 ? 'var(--primary-color)' : 'transparent'};" 
+                                     onclick="switchModalImage(${idx}, this)" data-src="${img}">
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            ` : '';
+            
+            openModal(`
+                <div class="modal-overlay">
+                    <div class="modal-content" style="max-width: 900px;">
+                        <button class="modal-close-btn">&times;</button>
+                        <h2>${issue.title}</h2>
+                        <p class="location"><i class="fas fa-map-marker-alt"></i> ${issue.location}</p>
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 2rem; margin-top: 1rem;">
+                            <div>
+                                ${imageGallery}
+                                <p><strong>Description:</strong></p>
+                                <p>${issue.description}</p>
+                                <div style="margin-top: 1rem; display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.875rem;">
+                                    <span><i class="fas fa-user"></i> ${issue.reporterId.name}</span>
+                                    <span><i class="fas fa-calendar"></i> ${new Date(issue.created_at).toLocaleDateString()}</span>
+                                    <span><i class="fas fa-thumbs-up"></i> ${issue.upvotes} upvotes</span>
+                                    ${issue.downvotes > 0 ? `<span><i class="fas fa-thumbs-down"></i> ${issue.downvotes} downvotes</span>` : ''}
+                                    <span class="status-pill ${issue.status.toLowerCase().replace(' ', '-')}">${issue.status}</span>
+                                </div>
+                                ${renderSupporters(issue.supporters || [])}
+                                ${issue.reportCount > 0 ? renderReports(issue.reports || []) : ''}
+                            </div>
+                            <div class="comments-section">
+                                <h4>Comments</h4>
+                                <div id="commentsFeed" style="max-height: 300px; overflow-y: auto;">${renderComments(issue.comments)}</div>
+                                <form id="commentForm" data-issue-id="${issue._id}" style="display:flex; gap:10px; margin-top:1rem;">
+                                    <input type="text" id="commentInput" placeholder="Add a comment..." style="flex-grow:1; background: var(--background-color); border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 0.75rem;" required>
+                                    <button type="submit" class="btn"><i class="fas fa-paper-plane"></i></button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>`);
+
+            // Add image switching functionality
+            window.switchModalImage = (index, element) => {
+                const mainImage = document.getElementById('modalMainImage');
+                const thumbnails = element.parentElement.querySelectorAll('img');
+                
+                mainImage.src = element.dataset.src;
+                thumbnails.forEach((thumb, idx) => {
+                    thumb.style.border = idx === index ? '2px solid var(--primary-color)' : '2px solid transparent';
+                });
+            };
+            
+        } catch (error) {
+            showToast('Error loading issue details', 'error');
+        }
+    };
+
+    const logout = () => {
+        clearAuthToken();
+        appState.currentUser = null;
+        DOMElements.appContainer.classList.add('logged-out');
+        showOnboarding();
+    };
+
+    const showOnboarding = () => {
+        openModal(`
+            <div class="modal-overlay visible">
+                <div class="modal-content" style="text-align:center;">
+                    <i class="fas fa-city" style="font-size:3rem; color: var(--primary-color); margin-bottom: 1rem;"></i>
+                    <h2>Welcome to CivicPulse Enhanced</h2>
+                    <p style="color:var(--text-light); margin-bottom:1.5rem;">Join your community in making your area better with advanced photo reporting, intelligent duplicate detection, and spam filtering.</p>
+                    <div class="login-options">
+                        <button class="btn" id="loginBtn">Login</button>
+                        <button class="btn secondary" id="registerBtn">Register</button>
+                    </div>
+                </div>
+            </div>`);
+
+        document.getElementById('loginBtn').addEventListener('click', () => {
+            openModal(`
+                <div class="modal-overlay visible">
+                    <div class="modal-content">
+                        <button class="modal-close-btn">&times;</button>
+                        <h2>Login</h2>
+                        <form id="loginForm">
+                            <div class="form-group"><label>Email</label><input type="email" id="loginEmail" required></div>
+                            <div class="form-group"><label>Password</label><input type="password" id="loginPassword" required></div>
+                            <button type="submit" class="btn" style="width:100%;">Login</button>
+                        </form>
+                    </div>
+                </div>`);
+        });
+
+        document.getElementById('registerBtn').addEventListener('click', () => {
+            openModal(`
+                <div class="modal-overlay visible">
+                    <div class="modal-content">
+                        <button class="modal-close-btn">&times;</button>
+                        <h2>Create Your Profile</h2>
+                        <form id="registrationForm">
+                            <div class="profile-details-grid">
+                                <div class="form-group"><label>Name</label><input type="text" id="regName" required></div>
+                                <div class="form-group"><label>Email</label><input type="email" id="regEmail" required></div>
+                                <div class="form-group"><label>Password</label><input type="password" id="regPassword" required></div>
+                                <div class="form-group"><label>Phone</label><input type="tel" id="regPhone" required></div>
+                                <div class="form-group"><label>Age</label><input type="number" id="regAge" required></div>
+                                <div class="form-group"><label>Sex</label>
+                                    <select id="regSex" required>
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group"><label>Aadhaar Number</label><input type="text" id="regAadhaar" required pattern="\\d{12}"></div>
+                            <div class="form-group"><label>Address</label><input type="text" id="regAddress" required></div>
+                            <button type="submit" class="btn" style="width:100%;">Create Profile</button>
+                        </form>
+                    </div>
+                </div>`);
+        });
+    };
+
+    const initApp = async () => {
+        DOMElements.appContainer.classList.remove('logged-out');
+        await loadUserProfile();
+        await refreshDashboard();
+        
+        // Load saved preferences
+        const savedDarkMode = localStorage.getItem('dark-mode') === 'true';
+        const savedLanguage = localStorage.getItem('selected-language') || 'en';
+        
+        // Apply dark mode preference
+        if (savedDarkMode) {
+            document.body.classList.add('dark-mode');
+            const darkModeBtn = document.getElementById('darkModeBtn');
+            if (darkModeBtn) {
+                darkModeBtn.innerHTML = '<i class="fas fa-sun"></i>';
+            }
+        }
+        
+        // Apply language preference
+        appState.currentLanguage = savedLanguage;
+        translateUI();
+        
+        // Setup language dropdown
+        const languageDropdown = document.getElementById('languageDropdown');
+        if (languageDropdown) {
+            languageDropdown.innerHTML = `
+                <div class="dropdown-item language-option" data-lang="en">🇺🇸 English</div>
+                <div class="dropdown-item language-option" data-lang="hi">🇮🇳 हिन्दी</div>
+                <div class="dropdown-item language-option" data-lang="ta">🇮🇳 தமிழ்</div>
+                <div class="dropdown-item language-option" data-lang="te">🇮🇳 తెలుగు</div>
+                <div class="dropdown-item language-option" data-lang="ml">🇮🇳 മലയാളം</div>
+                <div class="dropdown-item language-option" data-lang="bn">🇧🇩 বাংলা</div>
+            `;
+        }
+        
+        // Ensure accessibility panel is visible
+        setTimeout(() => {
+            const accessibilityPanel = document.querySelector('.accessibility-panel');
+            if (accessibilityPanel) {
+                accessibilityPanel.style.display = 'flex';
+            }
+        }, 100);
+    };
+
+    const setupEventListeners = () => {
+        DOMElements.navLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                showView(link.dataset.view);
+                if (window.innerWidth <= 768) {
+                    DOMElements.sidebar.classList.remove('active');
+                    DOMElements.mobileOverlay.classList.remove('active');
+                }
+            });
+        });
+
+        DOMElements.reportIssueBtn.addEventListener('click', openReportModal);
+        
+        DOMElements.profileBtn.addEventListener('click', () => {
+            const user = appState.currentUser;
+            openModal(`
+                <div class="modal-overlay">
+                    <div class="modal-content" style="text-align:center;">
+                        <button class="modal-close-btn">&times;</button>
+                        <img src="${user.avatar}" style="width:100px; height:100px; border-radius:50%; margin-bottom:1rem; border:4px solid var(--primary-color);">
+                        <h2>${user.name}</h2>
+                        <p style="font-size:1.2rem; color:var(--primary-color); font-weight:bold;">${user.score.toLocaleString()} Points</p>
+                        ${user.spam_reports > 0 ? `<p style="color: var(--danger-color); font-size: 0.9rem; margin-top: 0.5rem;"><i class="fas fa-exclamation-triangle"></i> ${user.spam_reports} spam reports</p>` : ''}
+                        <h3 style="margin-top:2rem; border-top:1px solid var(--border-color); padding-top:1.5rem;">Personal Details</h3>
+                        <div class="profile-details-grid" style="text-align:left; margin-top:1rem;">
+                            <p><strong>Email:</strong> ${user.email}</p>
+                            <p><strong>Phone:</strong> ${user.phone}</p>
+                            <p><strong>Age:</strong> ${user.age}</p>
+                            <p><strong>Sex:</strong> ${user.sex}</p>
+                            <p><strong>Aadhaar:</strong> **** **** ${user.aadhaar?.slice(-4) || '****'}</p>
+                            <p><strong>Address:</strong> ${user.address}</p>
+                        </div>
+                        <button class="btn" id="logoutBtn" style="margin-top:1.5rem;">Logout</button>
+                    </div>
+                </div>`);
+        });
+
+        DOMElements.notificationsBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            DOMElements.notificationsDropdown.classList.toggle('show');
+            if (appState.currentUser) {
+                await API.users.markNotificationsRead();
+                setTimeout(async () => {
+                    await loadUserProfile();
+                }, 300);
+            }
+        });
+
+        DOMElements.menuToggle.addEventListener('click', () => {
+            DOMElements.sidebar.classList.toggle('active');
+            DOMElements.mobileOverlay.classList.toggle('active');
+        });
+
+        DOMElements.mobileOverlay.addEventListener('click', () => {
+            DOMElements.sidebar.classList.remove('active');
+            DOMElements.mobileOverlay.classList.remove('active');
+        });
+
+        // Dark Mode Toggle - Fixed
+        const darkModeBtn = document.getElementById('darkModeBtn');
+        if (darkModeBtn) {
+            darkModeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.body.classList.toggle('dark-mode');
+                const isDark = document.body.classList.contains('dark-mode');
+                darkModeBtn.innerHTML = `<i class="fas fa-${isDark ? 'sun' : 'moon'}"></i>`;
+                
+                // Save preference
+                localStorage.setItem('dark-mode', isDark);
+                showToast(`Switched to ${isDark ? 'dark' : 'light'} mode`, 'success');
+            });
+        }
+
+        // Language Selector - Fixed
+        const languageBtn = document.getElementById('languageBtn');
+        const languageDropdown = document.getElementById('languageDropdown');
+        
+        if (languageBtn && languageDropdown) {
+            languageBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                languageDropdown.classList.toggle('show');
+            });
+        }
+
+        document.addEventListener('click', (e) => {
+            // Skip all handling if this is within a duplicate modal
+            if (e.target.closest('.duplicate-modal')) {
+                return;
+            }
+            
+            // Handle modal closing - only for overlay clicks, not content clicks
+            if (e.target.classList.contains('modal-overlay') && !e.target.closest('.modal-content')) {
+                closeModal();
+            }
+            
+            // Close dropdowns when clicking outside
+            if (!e.target.closest('.accessibility-btn') && !e.target.closest('.dropdown-menu')) {
+                document.querySelectorAll('.dropdown-menu').forEach(menu => menu.classList.remove('show'));
+            }
+
+            // Theme selector
+            if (e.target.classList.contains('theme-option')) {
+                const theme = e.target.dataset.theme;
+                const themes = {
+                    default: { primary: '#4f46e5', secondary: '#10b981', accent: '#f97316' },
+                    rose: { primary: '#db2777', secondary: '#5eead4', accent: '#fb923c' },
+                    forest: { primary: '#16a34a', secondary: '#facc15', accent: '#f97316' },
+                    sunset: { primary: '#d97706', secondary: '#f43f5e', accent: '#6d28d9' }
+                };
+                document.documentElement.style.setProperty('--primary-color', themes[theme].primary);
+                document.documentElement.style.setProperty('--secondary-color', themes[theme].secondary);
+                document.documentElement.style.setProperty('--accent-color', themes[theme].accent);
+                document.querySelectorAll('.theme-option').forEach(el => el.classList.remove('active'));
+                e.target.classList.add('active');
+            }
+
+            // Font selector
+            if (e.target.classList.contains('font-option')) {
+                const font = e.target.dataset.font;
+                document.documentElement.style.setProperty('--font-family', `"${font}", sans-serif`);
+                document.querySelectorAll('.font-option').forEach(el => el.classList.remove('active'));
+                e.target.classList.add('active');
+            }
+
+            // Language selector - Fixed
+            if (e.target.classList.contains('language-option')) {
+                const newLang = e.target.dataset.lang;
+                appState.currentLanguage = newLang;
+                translateUI();
+                languageDropdown.classList.remove('show');
+                localStorage.setItem('selected-language', newLang);
+                showToast(`Language changed to ${e.target.textContent}`, 'success');
+            }
+
+            // Toggle switches
+            if (e.target.classList.contains('toggle-switch')) {
+                e.target.classList.toggle('active');
+            }
+        });
+
+        // Font size slider
+        document.getElementById('fontSizeSlider')?.addEventListener('input', (e) => {
+            document.documentElement.style.fontSize = `${e.target.value}px`;
+        });
+
+        document.body.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (e.target.id === 'loginForm') {
+                try {
+                    const { user, token } = await API.users.login({
+                        email: document.getElementById('loginEmail').value,
+                        password: document.getElementById('loginPassword').value
+                    });
+                    setAuthToken(token);
+                    appState.currentUser = user;
+                    closeModal();
+                    initApp();
+                    showToast('Login successful!', 'success');
+                } catch (error) {
+                    showToast(error.message, 'error');
+                }
+            }
+
+            if (e.target.id === 'registrationForm') {
+                try {
+                    const { user, token } = await API.users.register({
+                        name: document.getElementById('regName').value,
+                        email: document.getElementById('regEmail').value,
+                        password: document.getElementById('regPassword').value,
+                        phone: document.getElementById('regPhone').value,
+                        age: document.getElementById('regAge').value,
+                        sex: document.getElementById('regSex').value,
+                        aadhaar: document.getElementById('regAadhaar').value,
+                        address: document.getElementById('regAddress').value
+                    });
+                    setAuthToken(token);
+                    appState.currentUser = user;
+                    closeModal();
+                    initApp();
+                    showToast('Registration successful!', 'success');
+                } catch (error) {
+                    showToast(error.message, 'error');
+                }
+            }
+
+            if (e.target.id === 'reportForm') {
+                try {
+                    const issueData = {
+                        title: document.getElementById('issueTitle').value,
+                        category: document.getElementById('issueCategory').value,
+                        location: document.getElementById('issueLocation').value,
+                        description: document.getElementById('issueDescription').value,
+                        photos: appState.uploadedPhotos,
+                        coordinates: {
+                            lat: parseFloat(document.getElementById('issueLat').value),
+                            lng: parseFloat(document.getElementById('issueLng').value)
+                        }
+                    };
+
+                    // First check for duplicates
+                    const duplicateCheck = await API.issues.checkDuplicate(issueData);
+                    
+                    if (duplicateCheck.isDuplicate) {
+                        closeModal(); // Close the report form
+                        openDuplicateModal(duplicateCheck, issueData);
+                    } else {
+                        // No duplicates found, proceed with creation
+                        await API.issues.create(issueData);
+                        closeModal();
+                        showToast('Report submitted successfully!', 'success');
+                        await refreshDashboard();
+                        await loadUserProfile();
+                        appState.uploadedPhotos = [];
+                    }
+                } catch (error) {
+                    if (error.message.includes('Similar issue found')) {
+                        const duplicateData = JSON.parse(error.message.split('Similar issue found nearby: ')[1] || '{}');
+                        closeModal();
+                        openDuplicateModal(duplicateData, issueData);
+                    } else {
+                        showToast(error.message, 'error');
+                    }
+                }
+            }
+
+            if (e.target.id === 'reportSpamForm') {
+                try {
+                    const issueId = e.target.querySelector('[data-issue-id]').dataset.issueId;
+                    const reason = document.getElementById('reportReason').value;
+                    const details = document.getElementById('reportDetails').value;
+                    
+                    await API.issues.report(issueId, { reason, details });
+                    closeModal();
+                    showToast('Issue reported successfully. Thank you for keeping the community clean!', 'success');
+                    await refreshDashboard();
+                } catch (error) {
+                    showToast(error.message, 'error');
+                }
+            }
+
+            if (e.target.id === 'commentForm') {
+                try {
+                    const issueId = e.target.dataset.issueId;
+                    const text = document.getElementById('commentInput').value;
+                    await API.issues.addComment(issueId, text);
+                    showToast('Comment added!', 'success');
+                    openIssueDetailModal(issueId);
+                } catch (error) {
+                    showToast(error.message, 'error');
+                }
+            }
+        });
+
+        document.body.addEventListener('click', async (e) => {
+            // Skip all modal handling if this is a duplicate modal
+            if (e.target.closest('.duplicate-modal')) {
+                return;
+            }
+            
+            // Only close modal if clicking the close button or the overlay background
+            if (e.target.matches('.modal-close-btn')) {
+                closeModal();
+            } else if (e.target.matches('.modal-overlay') && !e.target.closest('.modal-content')) {
+                if (e.target === e.currentTarget) {
+                    closeModal();
+                }
+            }
+            
+            if (e.target.id === 'logoutBtn') logout();
+
+            // Issue card clicks
+            const issueCard = e.target.closest('.issue-card');
+            if (issueCard && !e.target.closest('.upvote-btn, .report-btn, .card-actions')) {
+                openIssueDetailModal(issueCard.dataset.issueId);
+            }
+
+            // Vote buttons
+            const voteBtn = e.target.closest('.upvote-btn');
+            if (voteBtn) {
+                try {
+                    const voteType = voteBtn.dataset.voteType || 'upvote';
+                    await API.issues.vote(voteBtn.dataset.issueId, voteType);
+                    await showView(document.querySelector('.view.active').id);
+                } catch (error) {
+                    showToast(error.message, 'error');
+                }
+            }
+
+            // Report spam buttons
+            if (e.target.closest('.report-btn')) {
+                const reportBtn = e.target.closest('.report-btn');
+                openReportSpamModal(reportBtn.dataset.issueId);
+            }
+
+            // Handle stat card clicks to show filtered issues
+            if (e.target.closest('.stat-card.clickable')) {
+                const card = e.target.closest('.stat-card.clickable');
+                if (card.dataset.view) {
+                    showView(card.dataset.view);
+                } else if (card.dataset.filter) {
+                    const filter = card.dataset.filter;
+                    let issuesToShow, title;
+                    if (filter === 'all') {
+                        issuesToShow = appState.issues.filter(i => i.status !== 'Spam' && i.status !== 'Removed');
+                        title = 'All Active Issues';
+                    } else {
+                        issuesToShow = appState.issues.filter(i => i.status === filter);
+                        title = `${filter} Issues`;
+                    }
+                    openIssueListModal(issuesToShow, title);
+                }
+            }
+        });
+    };
+
+    // Voice Recording Button Event Handler
+document.getElementById('voiceRecordBtn').addEventListener('click', () => {
+    // Check if voice.html exists
+    const voiceWindow = window.open('voice.html', 'voiceRecorder', 
+        'width=800,height=700,scrollbars=yes,resizable=yes,location=no,menubar=no,toolbar=no,status=no');
+    
+    // Handle popup blocker
+    if (!voiceWindow || voiceWindow.closed || typeof voiceWindow.closed === 'undefined') {
+        showToast('Popup blocked! Please allow popups for voice recording.', 'error');
+        return;
+    }
+
+    // Show loading state
+    showToast('Opening voice recorder...', 'info');
+    
+    // Listen for messages from the voice window
+    const messageHandler = (event) => {
+        // Security check - only accept messages from same origin
+        if (event.origin !== window.location.origin) return;
+        
+        if (event.data.type === 'VOICE_TRANSCRIPT') {
+            const transcript = event.data.transcript;
+            const language = event.data.language;
+            
+            // Clean up event listener
+            window.removeEventListener('message', messageHandler);
+            
+            // Show success message
+            showToast(`Voice transcript received in ${language}!`, 'success');
+            
+            // Open report modal with pre-filled transcript
+            setTimeout(() => {
+                openReportModal();
+                
+                // Wait for modal to load, then fill the description
+                setTimeout(() => {
+                    const descriptionField = document.getElementById('issueDescription');
+                    if (descriptionField && transcript) {
+                        descriptionField.value = transcript;
+                        descriptionField.focus();
+                        
+                        // Trigger input event to ensure any validation runs
+                        descriptionField.dispatchEvent(new Event('input', { bubbles: true }));
+                        
+                        showToast('Description auto-filled with your voice input!', 'success');
+                    }
+                }, 200);
+            }, 500);
+        }
+    };
+    
+    // Add event listener for messages
+    window.addEventListener('message', messageHandler);
+    
+    // Clean up if window is closed without sending data
+    const checkClosed = setInterval(() => {
+        if (voiceWindow.closed) {
+            window.removeEventListener('message', messageHandler);
+            clearInterval(checkClosed);
+        }
+    }, 1000);
+});
+
+    document.addEventListener('DOMContentLoaded', () => {
+        setupEventListeners();
+        const token = getAuthToken();
+        if (token) {
+            initApp();
+        } else {
+            showOnboarding();
+        }
+    });
+})();
+
+
+</script>
+</body>
+</html>
